@@ -1,0 +1,38 @@
+{
+  "name": "@macklinu/ballgame",
+  "type": "module",
+  "private": true,
+  "packageManager": "bun@1.3.0",
+  "license": "MIT",
+  "scripts": {
+    "dev": "DEV=true bun run --watch src/index.tsx",
+    "test": "vitest",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@effect-atom/atom-react": "^0.3.0",
+    "@effect/platform": "^0.92.0",
+    "@effect/platform-bun": "^0.81.0",
+    "@inkjs/ui": "^2.0.0",
+    "effect": "^3.18.0",
+    "ink": "^6.3.1",
+    "ink-big-text": "^2.0.0",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.41.1",
+    "@effect/vitest": "^0.26.0",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.0",
+    "@macklinu/prettier-config": "^0.0.0",
+    "@types/bun": "^1.2.23",
+    "@types/react": "^19.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.4",
+    "oxlint": "^1.19.0",
+    "prettier": "^3.6.2",
+    "react-devtools-core": "^6.1.5",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,7 +1,13 @@
-import { Atom, Result, useAtom, useAtomValue } from '@effect-atom/atom-react'
+import {
+  Atom,
+  Result,
+  useAtom,
+  useAtomRefresh,
+  useAtomValue,
+} from '@effect-atom/atom-react'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
-import { TextInput } from '@inkjs/ui'
+import { Spinner, TextInput } from '@inkjs/ui'
 import { pipe } from 'effect'
 import * as Console from 'effect/Console'
 import * as DateTime from 'effect/DateTime'
@@ -9,13 +15,15 @@ import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import * as Match from 'effect/Match'
 import * as Number from 'effect/Number'
+import * as Option from 'effect/Option'
 import { Box, render, Spacer, Text, useApp, useInput } from 'ink'
 import BigText from 'ink-big-text'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { dateAtom, isSameDay, nextDay, now, previousDay } from './date'
-import { Dialog } from './dialog'
+import * as Dialog from './Dialog'
 import { FullScreenBox } from './full-screen-box'
+import * as Game from './Game'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
 import { getSchedule, ScheduleResponse } from './Schedule'
@@ -30,6 +38,15 @@ const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
     .pipe(Atom.setIdleTTL(Duration.minutes(5)), Atom.keepAlive)
 )
 
+const gameFeedAtom = Atom.family((gamePk: number) =>
+  Atom.runtime(Game.Api.Default).atom(
+    Effect.gen(function* () {
+      const api = yield* Game.Api
+      return yield* api.getGameFeed(gamePk)
+    })
+  )
+)
+
 const selectedGameIndexAtom = Atom.make(0)
 
 const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
@@ -42,6 +59,9 @@ const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
     {children}
   </Box>
 )
+
+const isSubsequentWaiting = <A, E>(result: Result.Result<A, E>): boolean =>
+  Result.isNotInitial(result) && Result.isWaiting(result)
 
 const whenSuccess = <A, E>(
   result: Result.Result<A, E>,
@@ -110,13 +130,28 @@ const DailyGameView = ({ schedule }: { schedule: ScheduleResponse }) => {
   )
 }
 
+const GameDetailsView = ({ gamePk }: { gamePk: number }) => {
+  const game = useAtomValue(gameFeedAtom(gamePk))
+  return (
+    <Box flexDirection='column' padding={2} borderStyle='single'>
+      <Text>Game Details for {gamePk}</Text>
+      {Result.builder(game)
+        .onSuccess(({ gamePk }) => <Text>Game details for {gamePk}!</Text>)
+        .onError((error) => <Text>Error loading game: {String(error)}</Text>)
+        .orNull()}
+    </Box>
+  )
+}
+
 const App = () => {
   const app = useApp()
 
   const { currentView, isNestedView, pushView, popView } = useCurrentView()
+  const { dialog, showDialog, closeDialog } = Dialog.useCurrentDialog()
 
   const [date, setDate] = useAtom(dateAtom)
   const schedule = useAtomValue(scheduleAtom(date))
+  const refreshSchedule = useAtomRefresh(scheduleAtom(date))
   const [selectedGameIndex, setSelectedGameIndex] = useAtom(
     selectedGameIndexAtom
   )
@@ -125,13 +160,38 @@ const App = () => {
     setSelectedGameIndex(0)
   }, [schedule, setSelectedGameIndex])
 
-  const [isSelectingDate, setIsSelectingDate] = useState(false)
+  const refreshDuration = useMemo(
+    () =>
+      Option.fromNullable(
+        Result.builder(schedule)
+          .onSuccess(({ totalGames, dates }) =>
+            totalGames === 0
+              ? null
+              : dates[0]!.games.some(
+                    (game) => game.status.abstractGameCode === 'L'
+                  )
+                ? Duration.seconds(15)
+                : null
+          )
+          .orNull()
+      ),
+    [schedule]
+  )
+
+  useEffect(() => {
+    if (Option.isNone(refreshDuration)) {
+      return
+    }
+    const delay = refreshDuration.value.pipe(Duration.toMillis)
+    const interval = setInterval(() => refreshSchedule(), delay)
+    return () => clearInterval(interval)
+  }, [refreshSchedule, refreshDuration])
 
   useInput((input, key) => {
     Match.value(key).pipe(
       Match.when({ escape: true }, () => {
-        if (isSelectingDate) {
-          setIsSelectingDate(false)
+        if (Option.isSome(dialog)) {
+          closeDialog()
         } else if (isNestedView) {
           popView()
         }
@@ -165,6 +225,9 @@ const App = () => {
       Match.when({ upArrow: true }, () => {}),
       Match.when({ downArrow: true }, () => {}),
       Match.when({ return: true }, () => {
+        if (Option.isSome(dialog)) {
+          return
+        }
         whenSuccess(schedule, (schedule) => {
           pushView(
             View.GameDetails({
@@ -179,9 +242,12 @@ const App = () => {
       Match.when(Match.is('p'), () => setDate(previousDay)),
       Match.when(Match.is('n'), () => setDate(nextDay)),
       Match.when(Match.is('t'), () => setDate(now)),
-      Match.when(Match.is('g'), () => setIsSelectingDate(true)),
+      Match.when(Match.is('g'), () => showDialog(Dialog.Dialog.GoToDate())),
       Match.when(Match.is('j'), () => {}),
-      Match.when(Match.is('k'), () => {})
+      Match.when(Match.is('k'), () => {}),
+      Match.when(Match.is('?'), () => {
+        // TODO: show help dialog
+      })
     )
   })
 
@@ -205,26 +271,29 @@ const App = () => {
                 colors={['blue', 'white', 'red']}
               />
             </Box>
-            <Box flexDirection='column'>
-              <Box alignSelf='center'>
+            <Box flexDirection='column' alignItems='center'>
+              <Box flexDirection='column' gap={1}>
                 <Text bold>
                   {DateTime.formatLocal(date, { dateStyle: 'full' })}
                 </Text>
+                <Box alignSelf='center' minHeight={4}>
+                  {isSubsequentWaiting(schedule) ? <Spinner /> : null}
+                </Box>
               </Box>
-              {Result.match(schedule, {
-                onInitial: () => (
+              {Result.builder(schedule)
+                .onInitial(() => (
                   <CenteredContainer>
                     <Loading />
                   </CenteredContainer>
-                ),
-                onFailure: (error) => {
+                ))
+                .onFailure((error) => {
                   console.error(error)
                   return null
-                },
-                onSuccess: ({ value }) => {
-                  return <DailyGameView schedule={value} />
-                },
-              })}
+                })
+                .onSuccess((schedule) => {
+                  return <DailyGameView schedule={schedule} />
+                })
+                .orNull()}
             </Box>
             <Spacer />
             <Box
@@ -239,25 +308,28 @@ const App = () => {
               <KeyboardShortcut shortcut='n' description='next day' />
               <KeyboardShortcut shortcut='g' description='go to day' />
               <KeyboardShortcut shortcut='←/→' description='prev/next game' />
+              <KeyboardShortcut shortcut='⏎' description='select game' />
             </Box>
-            {isSelectingDate ? (
-              <Dialog>
-                <Text>Go to date</Text>
-                <TextInput
-                  placeholder='YYYY-MM-DD'
-                  onSubmit={(value) => {
-                    // TODO
-                  }}
-                />
-              </Dialog>
-            ) : null}
+            {Option.map(
+              dialog,
+              Dialog.Dialog.$match({
+                GoToDate: () => (
+                  <Dialog.Component>
+                    <Text>Go to date</Text>
+                    <TextInput
+                      placeholder='YYYY-MM-DD'
+                      onSubmit={(value) => {
+                        // TODO
+                      }}
+                    />
+                  </Dialog.Component>
+                ),
+                Help: () => null,
+              })
+            ).pipe(Option.getOrNull)}
           </>
         ),
-        GameDetails: ({ gamePk }) => (
-          <Box flexDirection='column' padding={2} borderStyle='single'>
-            <Text>Game Details for {gamePk}</Text>
-          </Box>
-        ),
+        GameDetails: ({ gamePk }) => <GameDetailsView gamePk={gamePk} />,
       })}
     </FullScreenBox>
   )

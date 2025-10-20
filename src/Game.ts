@@ -1,3 +1,7 @@
+import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
+import * as HttpClient from '@effect/platform/HttpClient'
+import * as HttpClientResponse from '@effect/platform/HttpClientResponse'
+import { Effect } from 'effect'
 import * as DateTime from 'effect/DateTime'
 import * as Match from 'effect/Match'
 import * as Schema from 'effect/Schema'
@@ -118,3 +122,30 @@ export const awayTeamScore = teamScore('away')
 
 export const hasStarted = (game: Game) =>
   game instanceof LiveGame || game instanceof FinalGame
+
+export class GameFeedLive extends Schema.Class<GameFeedLive>('GameFeedLive')({
+  gamePk: Schema.Number,
+  gameData: Schema.Struct({
+    game: GameSchema,
+  }),
+  liveData: Schema.Unknown,
+}) {}
+
+export class Api extends Effect.Service<Api>()('Api', {
+  effect: Effect.gen(function* () {
+    const httpClient = yield* HttpClient.HttpClient
+
+    const getGameFeed = Effect.fn('getGameFeed')(function* (gamePk: number) {
+      const url = new URL(
+        `https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`
+      )
+
+      return yield* httpClient
+        .get(url)
+        .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(GameFeedLive)))
+    })
+
+    return { getGameFeed } as const
+  }),
+  dependencies: [FetchHttpClient.layer],
+}) {}

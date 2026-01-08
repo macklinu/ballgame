@@ -25,12 +25,8 @@ export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
         </Box>
         {Game.hasStarted(game) && (
           <Box flexDirection='column'>
-            <Text>
-              {Game.awayTeamScore(game).pipe(Option.getOrElse(() => 0))}
-            </Text>
-            <Text>
-              {Game.homeTeamScore(game).pipe(Option.getOrElse(() => 0))}
-            </Text>
+            <Text>{Game.awayTeamScore(game).pipe(Option.getOrElse(() => 0))}</Text>
+            <Text>{Game.homeTeamScore(game).pipe(Option.getOrElse(() => 0))}</Text>
           </Box>
         )}
       </Box>

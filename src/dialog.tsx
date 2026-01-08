@@ -35,10 +35,7 @@ export const useCurrentDialog = () => {
   }
 }
 
-export const Component = ({
-  children,
-  ...props
-}: PropsWithChildren<BoxProps>) => (
+export const Component = ({ children, ...props }: PropsWithChildren<BoxProps>) => (
   <Box
     position='absolute'
     borderStyle='single'

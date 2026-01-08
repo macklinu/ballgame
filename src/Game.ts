@@ -120,8 +120,7 @@ const teamScore = (teamType: 'home' | 'away') => (game: LiveGame | FinalGame) =>
 export const homeTeamScore = teamScore('home')
 export const awayTeamScore = teamScore('away')
 
-export const hasStarted = (game: Game) =>
-  game instanceof LiveGame || game instanceof FinalGame
+export const hasStarted = (game: Game) => game instanceof LiveGame || game instanceof FinalGame
 
 export class GameFeedLive extends Schema.Class<GameFeedLive>('GameFeedLive')({
   gamePk: Schema.Number,
@@ -136,9 +135,7 @@ export class Api extends Effect.Service<Api>()('Api', {
     const httpClient = yield* HttpClient.HttpClient
 
     const getGameFeed = Effect.fn('getGameFeed')(function* (gamePk: number) {
-      const url = new URL(
-        `https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`
-      )
+      const url = new URL(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
 
       return yield* httpClient
         .get(url)

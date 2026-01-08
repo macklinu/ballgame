@@ -5,9 +5,7 @@ import * as Schema from 'effect/Schema'
 
 import * as Game from './Game'
 
-export class ScheduleResponse extends Schema.Class<ScheduleResponse>(
-  'ScheduleResponse'
-)({
+export class ScheduleResponse extends Schema.Class<ScheduleResponse>('ScheduleResponse')({
   totalGames: Schema.Number,
   dates: Schema.Array(
     Schema.Struct({

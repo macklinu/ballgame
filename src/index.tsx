@@ -1,10 +1,4 @@
-import {
-  Atom,
-  Result,
-  useAtom,
-  useAtomRefresh,
-  useAtomValue,
-} from '@effect-atom/atom-react'
+import { Atom, Result, useAtom, useAtomRefresh, useAtomValue } from '@effect-atom/atom-react'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
 import { Spinner, TextInput } from '@inkjs/ui'
@@ -50,12 +44,7 @@ const gameFeedAtom = Atom.family((gamePk: number) =>
 const selectedGameIndexAtom = Atom.make(0)
 
 const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
-  <Box
-    justifyContent='center'
-    flexDirection='column'
-    alignItems='center'
-    paddingY={4}
-  >
+  <Box justifyContent='center' flexDirection='column' alignItems='center' paddingY={4}>
     {children}
   </Box>
 )
@@ -63,10 +52,7 @@ const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
 const isSubsequentWaiting = <A, E>(result: Result.Result<A, E>): boolean =>
   Result.isNotInitial(result) && Result.isWaiting(result)
 
-const whenSuccess = <A, E>(
-  result: Result.Result<A, E>,
-  onSuccess: (a: A) => void
-) => {
+const whenSuccess = <A, E>(result: Result.Result<A, E>, onSuccess: (a: A) => void) => {
   if (Result.isSuccess(result)) {
     onSuccess(result.value)
   }
@@ -74,13 +60,7 @@ const whenSuccess = <A, E>(
 
 const NoGamesScheduled = () => <Text dimColor>No games scheduled</Text>
 
-const KeyboardShortcut = ({
-  shortcut,
-  description,
-}: {
-  shortcut: string
-  description: string
-}) => (
+const KeyboardShortcut = ({ shortcut, description }: { shortcut: string; description: string }) => (
   <Box flexDirection='row' flexWrap='wrap' gap={1} alignItems='center'>
     <Box paddingX={1} backgroundColor='white'>
       <Text color='black' bold>
@@ -152,9 +132,7 @@ const App = () => {
   const [date, setDate] = useAtom(dateAtom)
   const schedule = useAtomValue(scheduleAtom(date))
   const refreshSchedule = useAtomRefresh(scheduleAtom(date))
-  const [selectedGameIndex, setSelectedGameIndex] = useAtom(
-    selectedGameIndexAtom
-  )
+  const [selectedGameIndex, setSelectedGameIndex] = useAtom(selectedGameIndexAtom)
 
   useEffect(() => {
     setSelectedGameIndex(0)
@@ -167,9 +145,7 @@ const App = () => {
           .onSuccess(({ totalGames, dates }) =>
             totalGames === 0
               ? null
-              : dates[0]!.games.some(
-                    (game) => game.status.abstractGameCode === 'L'
-                  )
+              : dates[0]!.games.some((game) => game.status.abstractGameCode === 'L')
                 ? Duration.seconds(15)
                 : null
           )
@@ -265,17 +241,11 @@ const App = () => {
         Schedule: () => (
           <>
             <Box alignSelf='center'>
-              <BigText
-                text='Ballgame'
-                font='tiny'
-                colors={['blue', 'white', 'red']}
-              />
+              <BigText text='Ballgame' font='tiny' colors={['blue', 'white', 'red']} />
             </Box>
             <Box flexDirection='column' alignItems='center'>
               <Box flexDirection='column' gap={1}>
-                <Text bold>
-                  {DateTime.formatLocal(date, { dateStyle: 'full' })}
-                </Text>
+                <Text bold>{DateTime.formatLocal(date, { dateStyle: 'full' })}</Text>
                 <Box alignSelf='center' minHeight={4}>
                   {isSubsequentWaiting(schedule) ? <Spinner /> : null}
                 </Box>
@@ -296,13 +266,7 @@ const App = () => {
                 .orNull()}
             </Box>
             <Spacer />
-            <Box
-              paddingX={1}
-              borderStyle='single'
-              borderColor='gray'
-              flexDirection='row'
-              gap={1}
-            >
+            <Box paddingX={1} borderStyle='single' borderColor='gray' flexDirection='row' gap={1}>
               <KeyboardShortcut shortcut='p' description='previous day' />
               <KeyboardShortcut shortcut='t' description='today' />
               <KeyboardShortcut shortcut='n' description='next day' />

@@ -16,8 +16,6 @@ export class FinalStatus extends Status.extend<FinalStatus>('FinalStatus')({
   abstractGameCode: Schema.Literal('F'),
 }) {}
 
-export class PreviewStatus extends Status.extend<PreviewStatus>(
-  'PreviewStatus'
-)({
+export class PreviewStatus extends Status.extend<PreviewStatus>('PreviewStatus')({
   abstractGameCode: Schema.Literal('P'),
 }) {}

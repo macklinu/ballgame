@@ -32,9 +32,7 @@ export const useCurrentView = () => {
   )
 
   const popView = useCallback(() => {
-    setViews((views) =>
-      views.length > 1 ? views.slice(0, views.length - 1) : views
-    )
+    setViews((views) => (views.length > 1 ? views.slice(0, views.length - 1) : views))
   }, [setViews])
 
   return {

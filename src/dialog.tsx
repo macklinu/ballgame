@@ -1,7 +1,7 @@
 import { Atom, useAtom } from '@effect-atom/atom-react'
+import type { BoxProps } from '@opentui/react'
 import * as Data from 'effect/Data'
 import * as Option from 'effect/Option'
-import { Box, type BoxProps } from 'ink'
 import { useCallback, type PropsWithChildren } from 'react'
 
 import type { View } from './View'
@@ -36,16 +36,16 @@ export const useCurrentDialog = () => {
 }
 
 export const Component = ({ children, ...props }: PropsWithChildren<BoxProps>) => (
-  <Box
+  <box
     position='absolute'
-    borderStyle='single'
-    paddingY={1}
-    minWidth={24}
-    paddingX={4}
+    paddingTop={1}
+    paddingBottom={1}
+    paddingLeft={4}
+    paddingRight={4}
     flexDirection='column'
     gap={1}
     {...props}
   >
     {children}
-  </Box>
+  </box>
 )

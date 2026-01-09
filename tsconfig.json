@@ -5,6 +5,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
 
     // Bundler mode
     "moduleResolution": "bundler",

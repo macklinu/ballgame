@@ -11,7 +11,9 @@ export const now = (): DateTime.DateTime =>
     timeZone: DateTime.zoneMakeLocal(),
   }).pipe(DateTime.startOf('day'))
 
-export const dateAtom = Atom.make(now()).pipe(Atom.keepAlive)
+export const dateAtom = Atom.make(DateTime.unsafeMake('2025-07-02') as DateTime.DateTime).pipe(
+  Atom.keepAlive
+)
 
 export const goToDateAtom = Atom.fn(
   Effect.fnUntraced(

@@ -1,5 +1,5 @@
+import type { BoxProps } from '@opentui/react'
 import * as Option from 'effect/Option'
-import { Box, Text, type BoxProps } from 'ink'
 
 import * as Game from './Game'
 
@@ -10,7 +10,7 @@ export interface Props extends BoxProps {
 
 export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
   return (
-    <Box
+    <box
       {...props}
       flexDirection='row'
       justifyContent='space-between'
@@ -18,21 +18,21 @@ export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
       borderStyle='single'
       borderColor={isSelected ? 'white' : 'gray'}
     >
-      <Box flexDirection='row' gap={4} flexGrow={1}>
-        <Box flexDirection='column'>
-          <Text>{game.awayTeam.abbreviation}</Text>
-          <Text>{game.homeTeam.abbreviation}</Text>
-        </Box>
+      <box flexDirection='row' gap={4} flexGrow={1}>
+        <box flexDirection='column'>
+          <text>{game.awayTeam.abbreviation}</text>
+          <text>{game.homeTeam.abbreviation}</text>
+        </box>
         {Game.hasStarted(game) && (
-          <Box flexDirection='column'>
-            <Text>{Game.awayTeamScore(game).pipe(Option.getOrElse(() => 0))}</Text>
-            <Text>{Game.homeTeamScore(game).pipe(Option.getOrElse(() => 0))}</Text>
-          </Box>
+          <box flexDirection='column'>
+            <text>{Game.awayTeamScore(game).pipe(Option.getOrElse(() => 0))}</text>
+            <text>{Game.homeTeamScore(game).pipe(Option.getOrElse(() => 0))}</text>
+          </box>
         )}
-      </Box>
-      <Box>
-        <Text>{Game.currentTime(game)}</Text>
-      </Box>
-    </Box>
+      </box>
+      <box>
+        <text>{Game.currentTime(game)}</text>
+      </box>
+    </box>
   )
 }

@@ -11,7 +11,7 @@ export type View = Data.TaggedEnum<{
 }>
 export const View = Data.taggedEnum<View>()
 
-const viewsAtom = Atom.make<View[]>([View.Schedule()])
+const viewsAtom = Atom.make<ReadonlyArray<View>>([View.Schedule()])
 
 export const useCurrentView = () => {
   const [views, setViews] = useAtom(viewsAtom)
@@ -23,7 +23,7 @@ export const useCurrentView = () => {
           Option.filterMap((lastView) =>
             Equal.equals(lastView, view) ? Option.none() : Option.some(lastView)
           ),
-          Option.map(() => [...views, view]),
+          Option.map(() => Array.append(views, view)),
           Option.getOrElse(() => views)
         )
       )

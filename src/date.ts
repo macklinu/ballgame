@@ -1,5 +1,7 @@
 import { Atom } from '@effect-atom/atom-react'
 import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Schema from 'effect/Schema'
 
 export const isSameDay = (a: DateTime.DateTime, b: DateTime.DateTime) =>
   DateTime.formatIsoDate(a) === DateTime.formatIsoDate(b)
@@ -10,6 +12,16 @@ export const now = (): DateTime.DateTime =>
   }).pipe(DateTime.startOf('day'))
 
 export const dateAtom = Atom.make(now()).pipe(Atom.keepAlive)
+
+export const goToDateAtom = Atom.fn(
+  Effect.fnUntraced(
+    function* (input: string, ctx: Atom.FnContext) {
+      const date = yield* Schema.decodeUnknown(Schema.DateTimeUtc)(input)
+      ctx.set(dateAtom, date)
+    },
+    Effect.provide(DateTime.layerCurrentZoneNamed('UTC'))
+  )
+)
 
 export const nextDay = (date: DateTime.DateTime) =>
   date.pipe(DateTime.add({ days: 1 }), DateTime.startOf('day'))

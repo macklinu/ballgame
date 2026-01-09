@@ -1,9 +1,12 @@
-import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
 import * as HttpClient from '@effect/platform/HttpClient'
+import * as HttpClientError from '@effect/platform/HttpClientError'
 import * as HttpClientResponse from '@effect/platform/HttpClientResponse'
 import { Effect } from 'effect'
+import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
+import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
+import * as ParseResult from 'effect/ParseResult'
 import * as Schema from 'effect/Schema'
 
 import * as Status from './Status'
@@ -26,7 +29,7 @@ const abbreviatedInningState = (inningState: InningState) => {
 class Linescore extends Schema.Class<Linescore>('Linescore')({
   scheduledInnings: Schema.Number,
 }) {
-  static Live = class Live extends Linescore.extend<Live>('Live')({
+  static readonly Live = class Live extends Linescore.extend<Live>('Live')({
     inningState: InningState,
     inningHalf: Schema.Literal('Top', 'Bottom'),
     currentInning: Schema.Number,
@@ -124,25 +127,31 @@ export const hasStarted = (game: Game) => game instanceof LiveGame || game insta
 
 export class GameFeedLive extends Schema.Class<GameFeedLive>('GameFeedLive')({
   gamePk: Schema.Number,
-  gameData: Schema.Struct({
-    game: GameSchema,
-  }),
   liveData: Schema.Unknown,
 }) {}
 
-export class Api extends Effect.Service<Api>()('Api', {
-  effect: Effect.gen(function* () {
-    const httpClient = yield* HttpClient.HttpClient
+export class GameApi extends Context.Tag('@macklinu/ballgame/Game/GameApi')<
+  GameApi,
+  {
+    readonly feed: (
+      gamePk: number
+    ) => Effect.Effect<GameFeedLive, ParseResult.ParseError | HttpClientError.HttpClientError>
+  }
+>() {
+  static readonly layerLive = Layer.effect(
+    GameApi,
+    Effect.gen(function* () {
+      const httpClient = yield* HttpClient.HttpClient
 
-    const getGameFeed = Effect.fn('getGameFeed')(function* (gamePk: number) {
-      const url = new URL(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
-
-      return yield* httpClient
-        .get(url)
-        .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(GameFeedLive)))
+      return GameApi.of({
+        feed: (gamePk) =>
+          httpClient
+            .get(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
+            .pipe(
+              Effect.flatMap(HttpClientResponse.schemaBodyJson(GameFeedLive)),
+              Effect.withSpan('GameApi.feed')
+            ),
+      })
     })
-
-    return { getGameFeed } as const
-  }),
-  dependencies: [FetchHttpClient.layer],
-}) {}
+  )
+}

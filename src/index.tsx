@@ -1,4 +1,11 @@
-import { Atom, Result, useAtom, useAtomRefresh, useAtomValue } from '@effect-atom/atom-react'
+import {
+  Atom,
+  Result,
+  useAtom,
+  useAtomRefresh,
+  useAtomSet,
+  useAtomValue,
+} from '@effect-atom/atom-react'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
 import { Spinner, TextInput } from '@inkjs/ui'
@@ -7,6 +14,7 @@ import * as Console from 'effect/Console'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Number from 'effect/Number'
 import * as Option from 'effect/Option'
@@ -14,29 +22,40 @@ import { Box, render, Spacer, Text, useApp, useInput } from 'ink'
 import BigText from 'ink-big-text'
 import { useEffect, useMemo } from 'react'
 
-import { dateAtom, isSameDay, nextDay, now, previousDay } from './date'
+import { dateAtom, goToDateAtom, isSameDay, nextDay, now, previousDay } from './date'
 import * as Dialog from './Dialog'
 import { FullScreenBox } from './full-screen-box'
 import * as Game from './Game'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
-import { getSchedule, ScheduleResponse } from './Schedule'
+import { ScheduleResponse, ScheduleService } from './Schedule'
 import { useMeasureElement } from './use-measure-element'
 import { useCurrentView, View } from './View'
 
-const fetchRuntime = Atom.runtime(FetchHttpClient.layer)
+const fetchRuntime = Atom.runtime(
+  ScheduleService.layerLive.pipe(Layer.provide(FetchHttpClient.layer))
+)
 
 const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
   fetchRuntime
-    .atom(getSchedule(DateTime.formatIsoDate(date)))
+    .atom(
+      Effect.gen(function* () {
+        const scheduleService = yield* ScheduleService
+        return yield* scheduleService.getSchedule(DateTime.formatIsoDate(date))
+      })
+    )
     .pipe(Atom.setIdleTTL(Duration.minutes(5)), Atom.keepAlive)
 )
 
+const gameApiRuntime = Atom.runtime(
+  Game.GameApi.layerLive.pipe(Layer.provide(FetchHttpClient.layer))
+)
+
 const gameFeedAtom = Atom.family((gamePk: number) =>
-  Atom.runtime(Game.Api.Default).atom(
+  gameApiRuntime.atom(
     Effect.gen(function* () {
-      const api = yield* Game.Api
-      return yield* api.getGameFeed(gamePk)
+      const api = yield* Game.GameApi
+      return yield* api.feed(gamePk)
     })
   )
 )
@@ -130,6 +149,7 @@ const App = () => {
   const { dialog, showDialog, closeDialog } = Dialog.useCurrentDialog()
 
   const [date, setDate] = useAtom(dateAtom)
+  const goToDate = useAtomSet(goToDateAtom)
   const schedule = useAtomValue(scheduleAtom(date))
   const refreshSchedule = useAtomRefresh(scheduleAtom(date))
   const [selectedGameIndex, setSelectedGameIndex] = useAtom(selectedGameIndexAtom)
@@ -258,7 +278,7 @@ const App = () => {
                 ))
                 .onFailure((error) => {
                   console.error(error)
-                  return null
+                  return <Text>{error.toString()}</Text>
                 })
                 .onSuccess((schedule) => {
                   return <DailyGameView schedule={schedule} />
@@ -280,12 +300,7 @@ const App = () => {
                 GoToDate: () => (
                   <Dialog.Component>
                     <Text>Go to date</Text>
-                    <TextInput
-                      placeholder='YYYY-MM-DD'
-                      onSubmit={(value) => {
-                        // TODO
-                      }}
-                    />
+                    <TextInput placeholder='YYYY-MM-DD' onSubmit={goToDate} />
                   </Dialog.Component>
                 ),
                 Help: () => null,

@@ -43,7 +43,7 @@ const scheduleRuntime = Atom.runtime(
 
 const getScheduleForDate = Effect.fn(function* (date: DateTime.DateTime) {
   const scheduleService = yield* ScheduleService
-  return yield* scheduleService.getSchedule(DateTime.formatIsoDate(date))
+  return yield* scheduleService.getSchedule(date)
 })
 
 const scheduleAtom = Atom.family((date: DateTime.DateTime) =>

@@ -2,6 +2,7 @@ import * as HttpClient from '@effect/platform/HttpClient'
 import * as HttpClientError from '@effect/platform/HttpClientError'
 import * as HttpClientResponse from '@effect/platform/HttpClientResponse'
 import * as Context from 'effect/Context'
+import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as ParseResult from 'effect/ParseResult'
@@ -13,7 +14,14 @@ export class ScheduleDate extends Schema.Class<ScheduleDate>('ScheduleDate')({
   date: Schema.DateTimeUtc,
   totalGames: Schema.Number,
   games: Schema.Array(Game.GameSchema),
-}) {}
+}) {
+  static readonly empty = (date: DateTime.DateTime): ScheduleDate =>
+    ScheduleDate.make({
+      date: DateTime.toUtc(date),
+      games: [],
+      totalGames: 0,
+    })
+}
 
 export class ScheduleResponse extends Schema.Class<ScheduleResponse>('ScheduleResponse')({
   totalGames: Schema.Number,
@@ -24,7 +32,7 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
   ScheduleService,
   {
     readonly getSchedule: (
-      date: string
+      date: DateTime.DateTime
     ) => Effect.Effect<ScheduleDate, ParseResult.ParseError | HttpClientError.HttpClientError>
   }
 >() {
@@ -39,17 +47,13 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
             .get('https://statsapi.mlb.com/api/v1/schedule', {
               urlParams: {
                 sportId: 1,
-                date,
+                date: DateTime.formatIsoDate(date),
                 hydrate: ['team', 'game', 'linescore'].join(','),
               },
             })
             .pipe(
               Effect.flatMap(HttpClientResponse.schemaBodyJson(ScheduleResponse)),
-              Effect.flatMap(({ dates }) =>
-                dates[0]
-                  ? Effect.succeed(dates[0])
-                  : Effect.die(new Error('Missing dates for schedule query'))
-              ),
+              Effect.map(({ dates }) => dates[0] ?? ScheduleDate.empty(date)),
               Effect.withSpan('ScheduleService.getSchedule')
             ),
       })

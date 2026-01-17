@@ -9,15 +9,15 @@ import * as Schema from 'effect/Schema'
 
 import * as Game from './Game'
 
+export class ScheduleDate extends Schema.Class<ScheduleDate>('ScheduleDate')({
+  date: Schema.DateTimeUtc,
+  totalGames: Schema.Number,
+  games: Schema.Array(Game.GameSchema),
+}) {}
+
 export class ScheduleResponse extends Schema.Class<ScheduleResponse>('ScheduleResponse')({
   totalGames: Schema.Number,
-  dates: Schema.Array(
-    Schema.Struct({
-      date: Schema.DateTimeUtc,
-      totalGames: Schema.Number,
-      games: Schema.Array(Game.GameSchema),
-    })
-  ),
+  dates: Schema.Array(ScheduleDate),
 }) {}
 
 export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/ScheduleService')<
@@ -25,7 +25,7 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
   {
     readonly getSchedule: (
       date: string
-    ) => Effect.Effect<ScheduleResponse, ParseResult.ParseError | HttpClientError.HttpClientError>
+    ) => Effect.Effect<ScheduleDate, ParseResult.ParseError | HttpClientError.HttpClientError>
   }
 >() {
   static readonly layerLive = Layer.effect(
@@ -45,6 +45,11 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
             })
             .pipe(
               Effect.flatMap(HttpClientResponse.schemaBodyJson(ScheduleResponse)),
+              Effect.flatMap(({ dates }) =>
+                dates[0]
+                  ? Effect.succeed(dates[0])
+                  : Effect.die(new Error('Missing dates for schedule query'))
+              ),
               Effect.withSpan('ScheduleService.getSchedule')
             ),
       })

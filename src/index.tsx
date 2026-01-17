@@ -9,8 +9,7 @@ import {
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
 import { createCliRenderer, TextAttributes } from '@opentui/core'
-import { createRoot, useAppContext, useKeyboard } from '@opentui/react'
-import { pipe } from 'effect'
+import { createRoot, useKeyboard } from '@opentui/react'
 import * as Console from 'effect/Console'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
@@ -19,36 +18,44 @@ import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Number from 'effect/Number'
 import * as Option from 'effect/Option'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import 'opentui-spinner/react'
 
-import * as BunFileSystem from '@effect/platform-bun/BunFileSystem'
-import * as PlatformLogger from '@effect/platform/PlatformLogger'
-import * as Logger from 'effect/Logger'
+import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
+import { themes } from '@opentui-ui/dialog/themes'
+import { Toaster } from '@opentui-ui/toast/react'
+import * as Cause from 'effect/Cause'
+import * as Schedule from 'effect/Schedule'
+import * as Stream from 'effect/Stream'
 
 import { dateAtom, goToDateAtom, isSameDay, nextDay, now, previousDay } from './date'
-import * as Dialog from './Dialog'
 import * as Game from './Game'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
-import { ScheduleResponse, ScheduleService } from './Schedule'
+import { defaultAtomRuntime } from './Runtime'
+import { ScheduleDate, ScheduleService } from './Schedule'
 import { useCurrentView, View } from './View'
 
-const fetchRuntime = Atom.runtime(
+const scheduleRuntime = Atom.runtime(
   ScheduleService.layerLive.pipe(Layer.provide(FetchHttpClient.layer))
 )
 
+const getScheduleForDate = Effect.fn(function* (date: DateTime.DateTime) {
+  const scheduleService = yield* ScheduleService
+  return yield* scheduleService.getSchedule(DateTime.formatIsoDate(date))
+})
+
 const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
-  fetchRuntime
-    .atom(
-      Effect.gen(function* () {
-        const scheduleService = yield* ScheduleService
-        yield* Console.log(date)
-        return yield* scheduleService.getSchedule(DateTime.formatIsoDate(date))
-      })
+  scheduleRuntime.atom(
+    Stream.repeatEffectWithSchedule(getScheduleForDate(date), Schedule.spaced('15 seconds')).pipe(
+      Stream.takeUntil(
+        (schedule) =>
+          schedule.totalGames === 0 ||
+          schedule.games.every((game) => game.status.abstractGameCode === 'F')
+      )
     )
-    .pipe(Atom.setIdleTTL(Duration.minutes(5)), Atom.keepAlive)
+  )
 )
 
 const gameApiRuntime = Atom.runtime(
@@ -65,6 +72,57 @@ const gameFeedAtom = Atom.family((gamePk: number) =>
 )
 
 const selectedGameIndexAtom = Atom.make(0)
+
+const previousGameAtom = defaultAtomRuntime.fn(
+  Effect.fnUntraced(function* (date: DateTime.DateTime, get: Atom.FnContext) {
+    const schedule = Result.getOrThrow(get(scheduleAtom(date)))
+
+    const index = get(selectedGameIndexAtom)
+    const newIndex = Number.clamp({
+      minimum: 0,
+      maximum: schedule.totalGames - 1,
+    })(index - 1)
+
+    get.set(selectedGameIndexAtom, newIndex)
+  })
+)
+
+const nextGameAtom = defaultAtomRuntime.fn(
+  Effect.fnUntraced(function* (date: DateTime.DateTime, get: Atom.FnContext) {
+    const schedule = Result.getOrThrow(get(scheduleAtom(date)))
+
+    const index = get(selectedGameIndexAtom)
+    const newIndex = Number.clamp({
+      minimum: 0,
+      maximum: schedule.totalGames - 1,
+    })(index + 1)
+
+    get.set(selectedGameIndexAtom, newIndex)
+  })
+)
+
+const GoToDate = ({
+  onSubmit,
+  date,
+}: {
+  onSubmit: (value: string) => void
+  date: DateTime.DateTime
+}) => {
+  const [value, setValue] = useState(DateTime.formatIsoDate(date))
+  return (
+    <box flexDirection='column' gap={1}>
+      <text>Go to date</text>
+      <input
+        focused
+        placeholder='YYYY-MM-DD'
+        onSubmit={onSubmit}
+        value={value}
+        onChange={setValue}
+        padding={1}
+      />
+    </box>
+  )
+}
 
 const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
   <box
@@ -98,12 +156,14 @@ const KeyboardShortcut = ({ shortcut, description }: { shortcut: string; descrip
   </box>
 )
 
-const DailyGameView = ({ schedule }: { schedule: ScheduleResponse }) => {
+const DailyGameView = ({ schedule }: { schedule: ScheduleDate }) => {
   const date = useAtomValue(dateAtom)
   const selectedGameIndex = useAtomValue(selectedGameIndexAtom)
-  const day = schedule.dates.find((d) => isSameDay(d.date, date))
+  const day = schedule.games.some((d) => isSameDay(d.gameDate, date))
 
-  if (!day || day.totalGames === 0) {
+  const { pushView } = useCurrentView()
+
+  if (!day) {
     return (
       <CenteredContainer>
         <NoGamesScheduled />
@@ -122,8 +182,12 @@ const DailyGameView = ({ schedule }: { schedule: ScheduleResponse }) => {
       flexWrap='wrap'
       justifyContent='center'
     >
-      {day.games.map((game, index) => (
+      {schedule.games.map((game, index) => (
         <GameGridItem
+          onMouseUp={(e) => {
+            pushView(View.GameDetails({ gamePk: game.gamePk }))
+            e.stopPropagation()
+          }}
           flexBasis={24}
           key={game.gamePk}
           isSelected={index === selectedGameIndex}
@@ -148,15 +212,18 @@ const GameDetailsView = ({ gamePk }: { gamePk: number }) => {
 }
 
 const App = () => {
-  const app = useAppContext()
   const { currentView, isNestedView, pushView, popView } = useCurrentView()
-  const { dialog, showDialog, closeDialog } = Dialog.useCurrentDialog()
+  const dialog = useDialog()
+  const isDialogOpen = useDialogState((state) => state.isOpen)
 
   const [date, setDate] = useAtom(dateAtom)
-  const goToDate = useAtomSet(goToDateAtom)
+  const goToDate = useAtomSet(goToDateAtom, { mode: 'promise' })
   const schedule = useAtomValue(scheduleAtom(date))
   const refreshSchedule = useAtomRefresh(scheduleAtom(date))
   const [selectedGameIndex, setSelectedGameIndex] = useAtom(selectedGameIndexAtom)
+
+  const goToPreviousGame = useAtomSet(previousGameAtom)
+  const goToNextGame = useAtomSet(nextGameAtom)
 
   useEffect(() => {
     setSelectedGameIndex(0)
@@ -166,10 +233,10 @@ const App = () => {
     () =>
       Option.fromNullable(
         Result.builder(schedule)
-          .onSuccess(({ totalGames, dates }) =>
+          .onSuccess(({ totalGames, games }) =>
             totalGames === 0
               ? null
-              : dates[0]!.games.some((game) => game.status.abstractGameCode === 'L')
+              : games.some((game) => game.status.abstractGameCode === 'L')
                 ? Duration.seconds(15)
                 : null
           )
@@ -188,61 +255,30 @@ const App = () => {
   }, [refreshSchedule, refreshDuration])
 
   useKeyboard((key) => {
-    if (key.name === '`') {
-      app.renderer?.console.toggle()
+    if (isDialogOpen) {
+      return
     }
 
-    if (key.name === 'escape') {
-      if (Option.isSome(dialog)) {
-        closeDialog()
-      } else if (isNestedView) {
-        popView()
-      }
+    if (key.name === 'escape' && isNestedView) {
+      popView()
     }
 
     if (key.name === 'left') {
-      whenSuccess(schedule, ({ totalGames }) => {
-        setSelectedGameIndex(
-          pipe(
-            Number.decrement(1),
-            Number.clamp({
-              minimum: 0,
-              maximum: totalGames - 1,
-            })
-          )
-        )
-      })
+      goToPreviousGame(date)
     }
 
     if (key.name === 'right') {
-      whenSuccess(schedule, ({ totalGames }) => {
-        setSelectedGameIndex(
-          pipe(
-            Number.increment(1),
-            Number.clamp({
-              minimum: 0,
-              maximum: totalGames - 1,
-            })
-          )
-        )
-      })
+      goToNextGame(date)
     }
 
     if (key.name === 'return') {
-      if (Option.isSome(dialog)) {
-        return
-      }
       whenSuccess(schedule, (schedule) => {
         pushView(
           View.GameDetails({
-            gamePk: schedule.dates[0]!.games[selectedGameIndex]!.gamePk,
+            gamePk: schedule.games[selectedGameIndex]!.gamePk,
           })
         )
       })
-    }
-
-    if (Option.isSome(dialog)) {
-      return
     }
 
     Match.value(key.name).pipe(
@@ -250,7 +286,19 @@ const App = () => {
       Match.when(Match.is('p'), () => setDate(previousDay)),
       Match.when(Match.is('n'), () => setDate(nextDay)),
       Match.when(Match.is('t'), () => setDate(now)),
-      Match.when(Match.is('g'), () => showDialog(Dialog.Dialog.GoToDate())),
+      Match.when(Match.is('g'), () =>
+        dialog.show({
+          content: () => (
+            <GoToDate
+              date={date}
+              onSubmit={async (value) => {
+                await goToDate(value)
+                dialog.close()
+              }}
+            />
+          ),
+        })
+      ),
       Match.when(Match.is('j'), () => {}),
       Match.when(Match.is('k'), () => {}),
       Match.when(Match.is('?'), () => {
@@ -260,81 +308,72 @@ const App = () => {
   })
 
   return (
-    <box
-      width='100%'
-      height='100%'
-      flexDirection='column'
-      alignItems='center'
-      justifyContent='center'
-      marginTop={1}
-      gap={1}
-      position='relative'
-    >
-      {View.$match(currentView, {
-        Schedule: () => (
-          <>
-            <box alignSelf='center'>
-              <ascii-font text='Ballgame' font='tiny' color={['red', 'white', 'blue']} />
-            </box>
-            <box flexDirection='column' alignItems='center'>
-              <box flexDirection='column' gap={1}>
-                <text>
-                  <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
-                </text>
-                <box alignSelf='center' minHeight={4}>
-                  {isSubsequentWaiting(schedule) ? <spinner name='bouncingBall' /> : null}
+    <>
+      <box
+        width='100%'
+        height='100%'
+        flexDirection='column'
+        alignItems='center'
+        justifyContent='center'
+        marginTop={1}
+        gap={1}
+        position='relative'
+      >
+        {View.$match(currentView, {
+          Schedule: () => (
+            <>
+              <box alignSelf='center'>
+                <ascii-font text='Ballgame' font='tiny' color={['red', 'white', 'blue']} />
+              </box>
+              <box flexDirection='column' alignItems='center'>
+                <box flexDirection='column' gap={1}>
+                  <text>
+                    <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
+                  </text>
+                  <box alignSelf='center' minHeight={4}>
+                    {isSubsequentWaiting(schedule) ? <spinner name='bouncingBall' /> : null}
+                  </box>
+                </box>
+                <box flexGrow={0}>
+                  {Result.builder(schedule)
+                    .onInitial(() => (
+                      <CenteredContainer>
+                        <Loading />
+                      </CenteredContainer>
+                    ))
+                    .onFailure((error) => {
+                      console.error(error)
+                      return <text>{Cause.pretty(error)}</text>
+                    })
+                    .onSuccess((schedule) => {
+                      return <DailyGameView schedule={schedule} />
+                    })
+                    .orNull()}
                 </box>
               </box>
-              <box flexGrow={0}>
-                {Result.builder(schedule)
-                  .onInitial(() => (
-                    <CenteredContainer>
-                      <Loading />
-                    </CenteredContainer>
-                  ))
-                  .onFailure((error) => {
-                    console.error(error)
-                    return <text>{error.toString()}</text>
-                  })
-                  .onSuccess((schedule) => {
-                    return <DailyGameView schedule={schedule} />
-                  })
-                  .orNull()}
+              <box marginTop='auto' />
+              <box
+                paddingLeft={1}
+                paddingRight={1}
+                borderStyle='single'
+                borderColor='gray'
+                flexDirection='row'
+                gap={1}
+              >
+                <KeyboardShortcut shortcut='p' description='previous day' />
+                <KeyboardShortcut shortcut='t' description='today' />
+                <KeyboardShortcut shortcut='n' description='next day' />
+                <KeyboardShortcut shortcut='g' description='go to day' />
+                <KeyboardShortcut shortcut='←/→' description='prev/next game' />
+                <KeyboardShortcut shortcut='⏎' description='select game' />
               </box>
-            </box>
-            <box marginTop='auto' />
-            <box
-              paddingLeft={1}
-              paddingRight={1}
-              borderStyle='single'
-              borderColor='gray'
-              flexDirection='row'
-              gap={1}
-            >
-              <KeyboardShortcut shortcut='p' description='previous day' />
-              <KeyboardShortcut shortcut='t' description='today' />
-              <KeyboardShortcut shortcut='n' description='next day' />
-              <KeyboardShortcut shortcut='g' description='go to day' />
-              <KeyboardShortcut shortcut='←/→' description='prev/next game' />
-              <KeyboardShortcut shortcut='⏎' description='select game' />
-            </box>
-            {Option.map(
-              dialog,
-              Dialog.Dialog.$match({
-                GoToDate: () => (
-                  <Dialog.Component>
-                    <text>Go to date</text>
-                    <input placeholder='YYYY-MM-DD' onSubmit={goToDate} />
-                  </Dialog.Component>
-                ),
-                Help: () => null,
-              })
-            ).pipe(Option.getOrNull)}
-          </>
-        ),
-        GameDetails: ({ gamePk }) => <GameDetailsView gamePk={gamePk} />,
-      })}
-    </box>
+            </>
+          ),
+          GameDetails: ({ gamePk }) => <GameDetailsView gamePk={gamePk} />,
+        })}
+      </box>
+      <Toaster />
+    </>
   )
 }
 
@@ -343,7 +382,11 @@ const leaveAltScreenCommand = Console.log('\x1b[?1049l')
 
 const renderApp = Effect.tryPromise(async () => {
   const renderer = await createCliRenderer()
-  return createRoot(renderer).render(<App />)
+  return createRoot(renderer).render(
+    <DialogProvider {...themes.minimal}>
+      <App />
+    </DialogProvider>
+  )
 })
 
 const program = Effect.gen(function* () {
@@ -352,9 +395,4 @@ const program = Effect.gen(function* () {
   yield* leaveAltScreenCommand
 })
 
-const FileLoggerLive = Logger.replaceScoped(
-  Logger.defaultLogger,
-  Logger.jsonLogger.pipe(PlatformLogger.toFile('debug.log', { batchWindow: '500  millis' }))
-).pipe(Layer.provide(BunFileSystem.layer))
-
-BunRuntime.runMain(program.pipe(Effect.provide(FileLoggerLive)))
+BunRuntime.runMain(program)

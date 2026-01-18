@@ -1,0 +1,268 @@
+{
+  "copyright": "Copyright 2026 MLB Advanced Media, L.P.  Use of any content on this page acknowledges agreement to the terms posted here http://gdx.mlb.com/components/copyright.txt",
+  "totalItems": 1,
+  "totalEvents": 0,
+  "totalGames": 1,
+  "totalGamesInProgress": 0,
+  "dates": [
+    {
+      "date": "2025-07-15",
+      "totalItems": 1,
+      "totalEvents": 0,
+      "totalGames": 1,
+      "totalGamesInProgress": 0,
+      "games": [
+        {
+          "gamePk": 778566,
+          "gameGuid": "d414345e-0421-4e3f-9676-80a064cdc6ba",
+          "link": "/api/v1.1/game/778566/feed/live",
+          "gameType": "A",
+          "season": "2025",
+          "gameDate": "2025-07-16T00:00:00Z",
+          "officialDate": "2025-07-15",
+          "status": {
+            "abstractGameState": "Final",
+            "codedGameState": "F",
+            "detailedState": "Final: Tie, decision by tiebreaker",
+            "statusCode": "FW",
+            "startTimeTBD": false,
+            "reason": "Tied (won in tiebreaker)",
+            "abstractGameCode": "F"
+          },
+          "teams": {
+            "away": {
+              "team": {
+                "allStarStatus": "Y",
+                "id": 159,
+                "name": "American League All-Stars",
+                "link": "/api/v1/teams/159",
+                "season": 2025,
+                "venue": { "id": 3309, "name": "Nationals Park", "link": "/api/v1/venues/3309" },
+                "teamCode": "aas",
+                "fileCode": "al",
+                "abbreviation": "AL",
+                "teamName": "AL All-Stars",
+                "locationName": "Washington",
+                "firstYearOfPlay": "1933",
+                "league": { "id": 103, "name": "American League", "link": "/api/v1/league/103" },
+                "sport": { "id": 1, "link": "/api/v1/sports/1", "name": "Major League Baseball" },
+                "shortName": "AL All-Stars",
+                "franchiseName": "American",
+                "clubName": "American",
+                "active": true
+              },
+              "leagueRecord": { "wins": 0, "losses": 1, "pct": ".000" },
+              "score": 6,
+              "isWinner": false,
+              "splitSquad": false
+            },
+            "home": {
+              "team": {
+                "allStarStatus": "Y",
+                "id": 160,
+                "name": "National League All-Stars",
+                "link": "/api/v1/teams/160",
+                "season": 2025,
+                "venue": { "id": 3309, "name": "Nationals Park", "link": "/api/v1/venues/3309" },
+                "teamCode": "nas",
+                "fileCode": "nl",
+                "abbreviation": "NL",
+                "teamName": "NL All-Stars",
+                "locationName": "Washington",
+                "firstYearOfPlay": "1933",
+                "league": { "id": 104, "name": "National League", "link": "/api/v1/league/104" },
+                "sport": { "id": 1, "link": "/api/v1/sports/1", "name": "Major League Baseball" },
+                "shortName": "NL All-Stars",
+                "franchiseName": "National",
+                "clubName": "National",
+                "active": true
+              },
+              "leagueRecord": { "wins": 1, "losses": 0, "pct": "1.000" },
+              "score": 7,
+              "isWinner": true,
+              "splitSquad": false
+            }
+          },
+          "linescore": {
+            "note": "None out when winning run scored.",
+            "currentInning": 10,
+            "currentInningOrdinal": "10th",
+            "inningState": "Bottom",
+            "inningHalf": "Bottom",
+            "isTopInning": false,
+            "scheduledInnings": 9,
+            "innings": [
+              {
+                "num": 1,
+                "ordinalNum": "1st",
+                "home": { "runs": 2, "hits": 3, "errors": 0, "leftOnBase": 1 },
+                "away": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 }
+              },
+              {
+                "num": 2,
+                "ordinalNum": "2nd",
+                "home": { "runs": 0, "hits": 1, "errors": 0, "leftOnBase": 1 },
+                "away": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 }
+              },
+              {
+                "num": 3,
+                "ordinalNum": "3rd",
+                "home": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 },
+                "away": { "runs": 0, "hits": 1, "errors": 0, "leftOnBase": 1 }
+              },
+              {
+                "num": 4,
+                "ordinalNum": "4th",
+                "home": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 },
+                "away": { "runs": 0, "hits": 2, "errors": 0, "leftOnBase": 2 }
+              },
+              {
+                "num": 5,
+                "ordinalNum": "5th",
+                "home": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 },
+                "away": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 }
+              },
+              {
+                "num": 6,
+                "ordinalNum": "6th",
+                "home": { "runs": 4, "hits": 3, "errors": 0, "leftOnBase": 0 },
+                "away": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 }
+              },
+              {
+                "num": 7,
+                "ordinalNum": "7th",
+                "home": { "runs": 0, "hits": 1, "errors": 2, "leftOnBase": 2 },
+                "away": { "runs": 4, "hits": 2, "errors": 0, "leftOnBase": 1 }
+              },
+              {
+                "num": 8,
+                "ordinalNum": "8th",
+                "home": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 2 },
+                "away": { "runs": 0, "hits": 1, "errors": 0, "leftOnBase": 1 }
+              },
+              {
+                "num": 9,
+                "ordinalNum": "9th",
+                "home": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 },
+                "away": { "runs": 2, "hits": 3, "errors": 0, "leftOnBase": 1 }
+              },
+              {
+                "num": 10,
+                "ordinalNum": "10th",
+                "home": { "runs": 1, "hits": 0, "errors": 0, "leftOnBase": 0 },
+                "away": { "runs": 0, "hits": 0, "errors": 0, "leftOnBase": 0 }
+              }
+            ],
+            "teams": {
+              "home": { "runs": 7, "hits": 8, "errors": 2, "leftOnBase": 6, "isWinner": true },
+              "away": { "runs": 6, "hits": 9, "errors": 0, "leftOnBase": 6, "isWinner": false }
+            },
+            "defense": {
+              "pitcher": {
+                "id": 814869,
+                "fullName": "American League",
+                "link": "/api/v1/people/814869"
+              },
+              "catcher": {
+                "id": 672386,
+                "fullName": "Alejandro Kirk",
+                "link": "/api/v1/people/672386"
+              },
+              "first": {
+                "id": 666018,
+                "fullName": "Jonathan Aranda",
+                "link": "/api/v1/people/666018"
+              },
+              "second": {
+                "id": 665862,
+                "fullName": "Jazz Chisholm Jr.",
+                "link": "/api/v1/people/665862"
+              },
+              "third": {
+                "id": 672580,
+                "fullName": "Maikel Garcia",
+                "link": "/api/v1/people/672580"
+              },
+              "shortstop": {
+                "id": 677951,
+                "fullName": "Bobby Witt Jr.",
+                "link": "/api/v1/people/677951"
+              },
+              "left": { "id": 680757, "fullName": "Steven Kwan", "link": "/api/v1/people/680757" },
+              "center": {
+                "id": 621439,
+                "fullName": "Byron Buxton",
+                "link": "/api/v1/people/621439"
+              },
+              "right": {
+                "id": 668227,
+                "fullName": "Randy Arozarena",
+                "link": "/api/v1/people/668227"
+              },
+              "batter": {
+                "id": 672386,
+                "fullName": "Alejandro Kirk",
+                "link": "/api/v1/people/672386"
+              },
+              "onDeck": {
+                "id": 666018,
+                "fullName": "Jonathan Aranda",
+                "link": "/api/v1/people/666018"
+              },
+              "inHole": {
+                "id": 656716,
+                "fullName": "Zach McKinstry",
+                "link": "/api/v1/people/656716"
+              },
+              "battingOrder": 4,
+              "team": { "id": 159, "link": "/api/v1/teams/159" }
+            },
+            "offense": {
+              "batter": { "id": 621566, "fullName": "Matt Olson", "link": "/api/v1/people/621566" },
+              "onDeck": {
+                "id": 553993,
+                "fullName": "Eugenio Suárez",
+                "link": "/api/v1/people/553993"
+              },
+              "inHole": {
+                "id": 696100,
+                "fullName": "Hunter Goodman",
+                "link": "/api/v1/people/696100"
+              },
+              "pitcher": {
+                "id": 814870,
+                "fullName": "National League",
+                "link": "/api/v1/people/814870"
+              },
+              "battingOrder": 4,
+              "team": { "id": 160, "link": "/api/v1/teams/160" }
+            },
+            "balls": 0,
+            "strikes": 0,
+            "outs": 0
+          },
+          "venue": { "id": 4705, "name": "Truist Park", "link": "/api/v1/venues/4705" },
+          "content": { "link": "/api/v1/game/778566/content" },
+          "isTie": false,
+          "gameNumber": 1,
+          "publicFacing": true,
+          "doubleHeader": "N",
+          "gamedayType": "P",
+          "tiebreaker": "N",
+          "calendarEventID": "14-778566-2025-07-15",
+          "seasonDisplay": "2025",
+          "dayNight": "night",
+          "description": "NL wins in Home Run Derby tiebreaker (4-3)",
+          "scheduledInnings": 9,
+          "reverseHomeAwayStatus": false,
+          "inningBreakLength": 190,
+          "seriesDescription": "All-Star Game",
+          "recordSource": "S",
+          "ifNecessary": "N",
+          "ifNecessaryDescription": "Normal Game"
+        }
+      ],
+      "events": []
+    }
+  ]
+}

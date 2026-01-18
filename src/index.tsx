@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import 'opentui-spinner/react'
 
+import * as BunContext from '@effect/platform-bun/BunContext'
 import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
 import { themes } from '@opentui-ui/dialog/themes'
 import { Toaster } from '@opentui-ui/toast/react'
@@ -38,7 +39,7 @@ import { ScheduleDate, ScheduleService } from './Schedule'
 import { useCurrentView, View } from './View'
 
 const scheduleRuntime = Atom.runtime(
-  ScheduleService.layerLive.pipe(Layer.provide(FetchHttpClient.layer))
+  ScheduleService.layerFromFileSystem.pipe(Layer.provide(BunContext.layer))
 )
 
 const getScheduleForDate = Effect.fn(function* (date: DateTime.DateTime) {

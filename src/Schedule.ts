@@ -1,6 +1,8 @@
+import * as FileSystem from '@effect/platform/FileSystem'
 import * as HttpClient from '@effect/platform/HttpClient'
 import * as HttpClientError from '@effect/platform/HttpClientError'
 import * as HttpClientResponse from '@effect/platform/HttpClientResponse'
+import * as Path from '@effect/platform/Path'
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
@@ -56,6 +58,34 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
               Effect.map(({ dates }) => dates[0] ?? ScheduleDate.empty(date)),
               Effect.withSpan('ScheduleService.getSchedule')
             ),
+      })
+    })
+  )
+
+  static readonly layerFromFileSystem = Layer.effect(
+    ScheduleService,
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+
+      return ScheduleService.of({
+        getSchedule: (date) =>
+          Effect.gen(function* () {
+            const isoDate = DateTime.formatIsoDate(date)
+
+            const json = yield* fs.readFileString(
+              path.resolve('./src/fixtures/stats-api/schedule', `${isoDate}.json`)
+            )
+            const response = yield* Schema.decodeUnknown(
+              Schema.compose(Schema.parseJson(), ScheduleResponse)
+            )(json)
+            return response.dates[0] ?? ScheduleDate.empty(date)
+          }).pipe(
+            Effect.catchTags({
+              BadArgument: () => Effect.succeed(ScheduleDate.empty(date)),
+              SystemError: () => Effect.succeed(ScheduleDate.empty(date)),
+            })
+          ),
       })
     })
   )

@@ -34,6 +34,7 @@ import { dateAtom, goToDateAtom, isSameDay, nextDay, now, previousDay } from './
 import * as Game from './Game'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
+import { teamsQuickSearchAtom } from './QuickSearch'
 import { defaultAtomRuntime } from './Runtime'
 import { ScheduleDate, ScheduleService } from './Schedule'
 import { useCurrentView, View } from './View'
@@ -222,6 +223,7 @@ const App = () => {
   const schedule = useAtomValue(scheduleAtom(date))
   const refreshSchedule = useAtomRefresh(scheduleAtom(date))
   const [selectedGameIndex, setSelectedGameIndex] = useAtom(selectedGameIndexAtom)
+  const [teamsQuickSearch, setTeamsQuickSearch] = useAtom(teamsQuickSearchAtom)
 
   const goToPreviousGame = useAtomSet(previousGameAtom)
   const goToNextGame = useAtomSet(nextGameAtom)
@@ -260,20 +262,51 @@ const App = () => {
       return
     }
 
-    if (key.name === 'escape' && isNestedView) {
-      popView()
+    if (teamsQuickSearch.isActive) {
+      if (key.name === 'backspace') {
+        return setTeamsQuickSearch((prev) => ({
+          ...prev,
+          filter: prev.filter.slice(0, -1),
+        }))
+      }
+      if (/^[a-z]$/i.test(key.name)) {
+        return setTeamsQuickSearch((prev) => ({
+          ...prev,
+          filter: prev.filter + key.name,
+        }))
+      }
+      if (key.name === 'space') {
+        return setTeamsQuickSearch((prev) => ({
+          ...prev,
+          filter: prev.filter + ' ',
+        }))
+      }
+    }
+
+    if (key.name === 'escape') {
+      if (isNestedView) {
+        return popView()
+      }
+
+      if (teamsQuickSearch.isActive) {
+        return setTeamsQuickSearch((prev) => ({
+          ...prev,
+          isActive: false,
+          filter: '',
+        }))
+      }
     }
 
     if (key.name === 'left') {
-      goToPreviousGame(date)
+      return goToPreviousGame(date)
     }
 
     if (key.name === 'right') {
-      goToNextGame(date)
+      return goToNextGame(date)
     }
 
     if (key.name === 'return') {
-      whenSuccess(schedule, (schedule) => {
+      return whenSuccess(schedule, (schedule) => {
         pushView(
           View.GameDetails({
             gamePk: schedule.games[selectedGameIndex]!.gamePk,
@@ -282,7 +315,13 @@ const App = () => {
       })
     }
 
-    Match.value(key.name).pipe(
+    return Match.value(key.name).pipe(
+      Match.when(Match.is('/'), () =>
+        setTeamsQuickSearch((prev) => ({
+          ...prev,
+          isActive: true,
+        }))
+      ),
       Match.when(Match.is('q'), () => process.exit(0)),
       Match.when(Match.is('p'), () => setDate(previousDay)),
       Match.when(Match.is('n'), () => setDate(nextDay)),
@@ -353,6 +392,11 @@ const App = () => {
                 </box>
               </box>
               <box marginTop='auto' />
+              {teamsQuickSearch.isActive ? (
+                <text bg='red' fg='white' padding={1}>
+                  {teamsQuickSearch.filter}
+                </text>
+              ) : null}
               <box
                 paddingLeft={1}
                 paddingRight={1}

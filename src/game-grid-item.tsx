@@ -1,7 +1,11 @@
+import { useAtomValue } from '@effect-atom/atom-react'
 import type { BoxProps } from '@opentui/react'
 import * as Option from 'effect/Option'
 
 import * as Game from './Game'
+import { HighlightedText } from './HighlightedText'
+import { teamsQuickSearchFilterAtom } from './QuickSearch'
+import { buildSubstringSegments } from './SubstringMatch'
 
 export interface Props extends BoxProps {
   game: Game.Game
@@ -9,6 +13,7 @@ export interface Props extends BoxProps {
 }
 
 export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
+  const teamsFilter = useAtomValue(teamsQuickSearchFilterAtom)
   return (
     <box
       {...props}
@@ -20,8 +25,14 @@ export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
     >
       <box flexDirection='row' gap={4} flexGrow={1}>
         <box flexDirection='column'>
-          <text>{game.awayTeam.abbreviation}</text>
-          <text>{game.homeTeam.abbreviation}</text>
+          <HighlightedText
+            highlightColor='gray'
+            segments={buildSubstringSegments(game.awayTeam.abbreviation, teamsFilter)}
+          />
+          <HighlightedText
+            highlightColor='gray'
+            segments={buildSubstringSegments(game.homeTeam.abbreviation, teamsFilter)}
+          />
         </box>
         {Game.hasStarted(game) && (
           <box flexDirection='column'>

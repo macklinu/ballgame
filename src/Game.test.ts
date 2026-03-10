@@ -9,6 +9,6 @@ describe('Game.currentTime', () => {
     { game: Arbitrary.make(Game.PreviewGame) },
     ({ game }) => {
       // TODO
-    }
+    },
   )
 })

@@ -6,29 +6,27 @@ import {
   useAtomSet,
   useAtomValue,
 } from '@effect-atom/atom-react'
+import * as BunContext from '@effect/platform-bun/BunContext'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
+import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
+import { themes } from '@opentui-ui/dialog/themes'
+import { Toaster } from '@opentui-ui/toast/react'
 import { createCliRenderer, TextAttributes } from '@opentui/core'
 import { createRoot, useKeyboard } from '@opentui/react'
+import * as Cause from 'effect/Cause'
 import * as Console from 'effect/Console'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import 'opentui-spinner/react'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Number from 'effect/Number'
 import * as Option from 'effect/Option'
-import { useEffect, useMemo, useState } from 'react'
-
-import 'opentui-spinner/react'
-
-import * as BunContext from '@effect/platform-bun/BunContext'
-import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
-import { themes } from '@opentui-ui/dialog/themes'
-import { Toaster } from '@opentui-ui/toast/react'
-import * as Cause from 'effect/Cause'
 import * as Schedule from 'effect/Schedule'
 import * as Stream from 'effect/Stream'
+import { useEffect, useMemo, useState } from 'react'
 
 import { dateAtom, goToDateAtom, isSameDay, nextDay, now, previousDay } from './date'
 import * as Game from './Game'
@@ -39,7 +37,7 @@ import { ScheduleDate, ScheduleService } from './Schedule'
 import { useCurrentView, View } from './View'
 
 const scheduleRuntime = Atom.runtime(
-  ScheduleService.layerFromFileSystem.pipe(Layer.provide(BunContext.layer))
+  ScheduleService.layerFromFileSystem.pipe(Layer.provide(BunContext.layer)),
 )
 
 const getScheduleForDate = Effect.fn(function* (date: DateTime.DateTime) {
@@ -53,14 +51,14 @@ const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
       Stream.takeUntil(
         (schedule) =>
           schedule.totalGames === 0 ||
-          schedule.games.every((game) => game.status.abstractGameCode === 'F')
-      )
-    )
-  )
+          schedule.games.every((game) => game.status.abstractGameCode === 'F'),
+      ),
+    ),
+  ),
 )
 
 const gameApiRuntime = Atom.runtime(
-  Game.GameApi.layerLive.pipe(Layer.provide(FetchHttpClient.layer))
+  Game.GameApi.layerLive.pipe(Layer.provide(FetchHttpClient.layer)),
 )
 
 const gameFeedAtom = Atom.family((gamePk: number) =>
@@ -68,8 +66,8 @@ const gameFeedAtom = Atom.family((gamePk: number) =>
     Effect.gen(function* () {
       const api = yield* Game.GameApi
       return yield* api.feed(gamePk)
-    })
-  )
+    }),
+  ),
 )
 
 const selectedGameIndexAtom = Atom.make(0)
@@ -85,7 +83,7 @@ const previousGameAtom = defaultAtomRuntime.fn(
     })(index - 1)
 
     get.set(selectedGameIndexAtom, newIndex)
-  })
+  }),
 )
 
 const nextGameAtom = defaultAtomRuntime.fn(
@@ -99,7 +97,7 @@ const nextGameAtom = defaultAtomRuntime.fn(
     })(index + 1)
 
     get.set(selectedGameIndexAtom, newIndex)
-  })
+  }),
 )
 
 const GoToDate = ({
@@ -239,11 +237,11 @@ const App = () => {
               ? null
               : games.some((game) => game.status.abstractGameCode === 'L')
                 ? Duration.seconds(15)
-                : null
+                : null,
           )
-          .orNull()
+          .orNull(),
       ),
-    [schedule]
+    [schedule],
   )
 
   useEffect(() => {
@@ -277,7 +275,7 @@ const App = () => {
         pushView(
           View.GameDetails({
             gamePk: schedule.games[selectedGameIndex]!.gamePk,
-          })
+          }),
         )
       })
     }
@@ -298,13 +296,13 @@ const App = () => {
               }}
             />
           ),
-        })
+        }),
       ),
       Match.when(Match.is('j'), () => {}),
       Match.when(Match.is('k'), () => {}),
       Match.when(Match.is('?'), () => {
         // TODO: show help dialog
-      })
+      }),
     )
   })
 
@@ -386,7 +384,7 @@ const renderApp = Effect.tryPromise(async () => {
   return createRoot(renderer).render(
     <DialogProvider {...themes.minimal}>
       <App />
-    </DialogProvider>
+    </DialogProvider>,
   )
 })
 

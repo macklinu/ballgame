@@ -12,7 +12,7 @@ export const now = (): DateTime.DateTime =>
   }).pipe(DateTime.startOf('day'))
 
 export const dateAtom = Atom.make(DateTime.unsafeMake('2025-07-02') as DateTime.DateTime).pipe(
-  Atom.keepAlive
+  Atom.keepAlive,
 )
 
 export const goToDateAtom = Atom.fn(
@@ -21,8 +21,8 @@ export const goToDateAtom = Atom.fn(
       const date = yield* Schema.decodeUnknown(Schema.DateTimeUtc)(input)
       ctx.set(dateAtom, date)
     },
-    Effect.provide(DateTime.layerCurrentZoneNamed('UTC'))
-  )
+    Effect.provide(DateTime.layerCurrentZoneNamed('UTC')),
+  ),
 )
 
 export const nextDay = (date: DateTime.DateTime) =>

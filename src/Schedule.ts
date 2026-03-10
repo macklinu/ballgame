@@ -34,7 +34,7 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
   ScheduleService,
   {
     readonly getSchedule: (
-      date: DateTime.DateTime
+      date: DateTime.DateTime,
     ) => Effect.Effect<ScheduleDate, ParseResult.ParseError | HttpClientError.HttpClientError>
   }
 >() {
@@ -56,10 +56,10 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
             .pipe(
               Effect.flatMap(HttpClientResponse.schemaBodyJson(ScheduleResponse)),
               Effect.map(({ dates }) => dates[0] ?? ScheduleDate.empty(date)),
-              Effect.withSpan('ScheduleService.getSchedule')
+              Effect.withSpan('ScheduleService.getSchedule'),
             ),
       })
-    })
+    }),
   )
 
   static readonly layerFromFileSystem = Layer.effect(
@@ -74,19 +74,19 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
             const isoDate = DateTime.formatIsoDate(date)
 
             const json = yield* fs.readFileString(
-              path.resolve('./src/fixtures/stats-api/schedule', `${isoDate}.json`)
+              path.resolve('./src/fixtures/stats-api/schedule', `${isoDate}.json`),
             )
             const response = yield* Schema.decodeUnknown(
-              Schema.compose(Schema.parseJson(), ScheduleResponse)
+              Schema.compose(Schema.parseJson(), ScheduleResponse),
             )(json)
             return response.dates[0] ?? ScheduleDate.empty(date)
           }).pipe(
             Effect.catchTags({
               BadArgument: () => Effect.succeed(ScheduleDate.empty(date)),
               SystemError: () => Effect.succeed(ScheduleDate.empty(date)),
-            })
+            }),
           ),
       })
-    })
+    }),
   )
 }

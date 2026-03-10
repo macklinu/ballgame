@@ -21,14 +21,14 @@ export const useCurrentView = () => {
       setViews((views) =>
         Option.fromNullable(Array.last(views)).pipe(
           Option.filterMap((lastView) =>
-            Equal.equals(lastView, view) ? Option.none() : Option.some(lastView)
+            Equal.equals(lastView, view) ? Option.none() : Option.some(lastView),
           ),
           Option.map(() => Array.append(views, view)),
-          Option.getOrElse(() => views)
-        )
+          Option.getOrElse(() => views),
+        ),
       )
     },
-    [setViews]
+    [setViews],
   )
 
   const popView = useCallback(() => {

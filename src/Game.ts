@@ -101,12 +101,12 @@ export const GameSchema = Schema.Union(PreviewGame, LiveGame, FinalGame)
 
 export const currentTime = Match.type<Game>().pipe(
   Match.when(Match.instanceOf(PreviewGame), (game) =>
-    DateTime.formatLocal(game.gameDate, { timeStyle: 'short' })
+    DateTime.formatLocal(game.gameDate, { timeStyle: 'short' }),
   ),
   Match.when(Match.instanceOf(LiveGame), ({ linescore, status }) =>
     status.statusCode === 'PW'
       ? status.detailedState
-      : `${abbreviatedInningState(linescore.inningState)} ${linescore.currentInning}`
+      : `${abbreviatedInningState(linescore.inningState)} ${linescore.currentInning}`,
   ),
   Match.when(Match.instanceOf(FinalGame), ({ linescore }) => {
     if (linescore.currentInning !== 9) {
@@ -114,7 +114,7 @@ export const currentTime = Match.type<Game>().pipe(
     }
     return 'F'
   }),
-  Match.orElseAbsurd
+  Match.orElseAbsurd,
 )
 
 const teamScore = (teamType: 'home' | 'away') => (game: LiveGame | FinalGame) =>
@@ -134,7 +134,7 @@ export class GameApi extends Context.Tag('@macklinu/ballgame/Game/GameApi')<
   GameApi,
   {
     readonly feed: (
-      gamePk: number
+      gamePk: number,
     ) => Effect.Effect<GameFeedLive, ParseResult.ParseError | HttpClientError.HttpClientError>
   }
 >() {
@@ -149,9 +149,9 @@ export class GameApi extends Context.Tag('@macklinu/ballgame/Game/GameApi')<
             .get(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
             .pipe(
               Effect.flatMap(HttpClientResponse.schemaBodyJson(GameFeedLive)),
-              Effect.withSpan('GameApi.feed')
+              Effect.withSpan('GameApi.feed'),
             ),
       })
-    })
+    }),
   )
 }

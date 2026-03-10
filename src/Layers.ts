@@ -6,7 +6,7 @@ import * as LogLevel from 'effect/LogLevel'
 
 const FileLoggerLive = Logger.replaceScoped(
   Logger.defaultLogger,
-  Logger.jsonLogger.pipe(PlatformLogger.toFile('debug.log', { batchWindow: '500  millis' }))
+  Logger.jsonLogger.pipe(PlatformLogger.toFile('debug.log', { batchWindow: '500  millis' })),
 ).pipe(Layer.provide(BunFileSystem.layer))
 
 export const all = Layer.mergeAll(FileLoggerLive, Logger.minimumLogLevel(LogLevel.Debug))

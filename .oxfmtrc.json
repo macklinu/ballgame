@@ -5,5 +5,5 @@
   "semi": false,
   "sortImports": {},
   "sortPackageJson": {},
-  "ignorePatterns": []
+  "ignorePatterns": ["repos/**"]
 }

@@ -6,6 +6,18 @@
       "sourceType": "github",
       "skillPath": "skills/conventional-commit/SKILL.md",
       "computedHash": "f29c9486cede6c7b2df0cfb0a2e4aa67446552b991bcf17d1b309e903171f03d"
+    },
+    "opentui": {
+      "source": "anomalyco/opentui",
+      "sourceType": "github",
+      "skillPath": "packages/web/src/content/SKILL.md",
+      "computedHash": "492f64c48c683471df28abce25f5b05d212265532e63a29e42ca4d275288bc44"
+    },
+    "terminal-control": {
+      "source": "anomalyco/terminal-control",
+      "sourceType": "github",
+      "skillPath": "skills/terminal-control/SKILL.md",
+      "computedHash": "da64a8a8ac1558718e39e120cb92809136c6d24884a7bbb7084b39e4e1b47a0f"
     }
   }
 }

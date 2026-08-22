@@ -5,5 +5,5 @@
   "semi": false,
   "sortImports": {},
   "sortPackageJson": {},
-  "ignorePatterns": ["repos/**"]
+  "ignorePatterns": ["repos/**", ".agents/skills/**"]
 }

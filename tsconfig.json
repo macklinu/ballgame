@@ -1,4 +1,5 @@
 {
+  "$schema": "./node_modules/@effect/tsgo/schema.json",
   "compilerOptions": {
     // Environment setup & latest features
     "lib": ["ESNext", "DOM"],
@@ -15,6 +16,7 @@
 
     // Best practices
     "strict": true,
+    "types": ["bun"],
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
@@ -28,6 +30,7 @@
     "plugins": [
       {
         "name": "@effect/language-service",
+        "diagnostics": false,
         "namespaceImportPackages": ["effect", "@effect/platform-bun"]
       }
     ]

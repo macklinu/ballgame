@@ -1,17 +1,6 @@
-import {
-  Atom,
-  Result,
-  useAtom,
-  useAtomRefresh,
-  useAtomSet,
-  useAtomValue,
-} from '@effect-atom/atom-react'
-import * as BunContext from '@effect/platform-bun/BunContext'
+import { useAtom, useAtomRefresh, useAtomSet, useAtomValue } from '@effect/atom-react'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
-import * as FetchHttpClient from '@effect/platform/FetchHttpClient'
-import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
-import { themes } from '@opentui-ui/dialog/themes'
-import { Toaster } from '@opentui-ui/toast/react'
+import * as BunServices from '@effect/platform-bun/BunServices'
 import { createCliRenderer, TextAttributes } from '@opentui/core'
 import { createRoot, useKeyboard } from '@opentui/react'
 import * as Cause from 'effect/Cause'
@@ -19,35 +8,38 @@ import * as Console from 'effect/Console'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
-import 'opentui-spinner/react'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Number from 'effect/Number'
 import * as Option from 'effect/Option'
 import * as Schedule from 'effect/Schedule'
 import * as Stream from 'effect/Stream'
+import * as FetchHttpClient from 'effect/unstable/http/FetchHttpClient'
+import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult'
+import * as Atom from 'effect/unstable/reactivity/Atom'
 import { useEffect, useMemo, useState } from 'react'
 
 import { dateAtom, goToDateAtom, isSameDay, nextDay, now, previousDay } from './date'
 import * as Game from './Game'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
-import { defaultAtomRuntime } from './Runtime'
 import { ScheduleDate, ScheduleService } from './Schedule'
 import { useCurrentView, View } from './View'
 
 const scheduleRuntime = Atom.runtime(
-  ScheduleService.layerFromFileSystem.pipe(Layer.provide(BunContext.layer)),
+  ScheduleService.layerFromFileSystem.pipe(Layer.provide(BunServices.layer)),
 )
 
-const getScheduleForDate = Effect.fn(function* (date: DateTime.DateTime) {
+const getScheduleForDate = Effect.fn('Schedule.getScheduleForDate')(function* (
+  date: DateTime.DateTime,
+) {
   const scheduleService = yield* ScheduleService
   return yield* scheduleService.getSchedule(date)
 })
 
 const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
   scheduleRuntime.atom(
-    Stream.repeatEffectWithSchedule(getScheduleForDate(date), Schedule.spaced('15 seconds')).pipe(
+    Stream.fromEffectSchedule(getScheduleForDate(date), Schedule.spaced('15 seconds')).pipe(
       Stream.takeUntil(
         (schedule) =>
           schedule.totalGames === 0 ||
@@ -72,56 +64,36 @@ const gameFeedAtom = Atom.family((gamePk: number) =>
 
 const selectedGameIndexAtom = Atom.make(0)
 
-const previousGameAtom = defaultAtomRuntime.fn(
-  Effect.fnUntraced(function* (date: DateTime.DateTime, get: Atom.FnContext) {
-    const schedule = Result.getOrThrow(get(scheduleAtom(date)))
+const previousGameAtom = Atom.fnSync<DateTime.DateTime>()((date, get) => {
+  const schedule = AsyncResult.getOrThrow(get(scheduleAtom(date)))
 
-    const index = get(selectedGameIndexAtom)
-    const newIndex = Number.clamp({
-      minimum: 0,
-      maximum: schedule.totalGames - 1,
-    })(index - 1)
+  const index = get(selectedGameIndexAtom)
+  const newIndex = Number.clamp({
+    minimum: 0,
+    maximum: schedule.totalGames - 1,
+  })(index - 1)
 
-    get.set(selectedGameIndexAtom, newIndex)
-  }),
+  get.set(selectedGameIndexAtom, newIndex)
+})
+
+const nextGameAtom = Atom.fnSync<DateTime.DateTime>()((date, get) => {
+  const schedule = AsyncResult.getOrThrow(get(scheduleAtom(date)))
+
+  const index = get(selectedGameIndexAtom)
+  const newIndex = Number.clamp({
+    minimum: 0,
+    maximum: schedule.totalGames - 1,
+  })(index + 1)
+
+  get.set(selectedGameIndexAtom, newIndex)
+})
+
+const GoToDate = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+  <box flexDirection='column' gap={1}>
+    <text>Go to date</text>
+    <input focused placeholder='YYYY-MM-DD' value={value} onChange={onChange} padding={1} />
+  </box>
 )
-
-const nextGameAtom = defaultAtomRuntime.fn(
-  Effect.fnUntraced(function* (date: DateTime.DateTime, get: Atom.FnContext) {
-    const schedule = Result.getOrThrow(get(scheduleAtom(date)))
-
-    const index = get(selectedGameIndexAtom)
-    const newIndex = Number.clamp({
-      minimum: 0,
-      maximum: schedule.totalGames - 1,
-    })(index + 1)
-
-    get.set(selectedGameIndexAtom, newIndex)
-  }),
-)
-
-const GoToDate = ({
-  onSubmit,
-  date,
-}: {
-  onSubmit: (value: string) => void
-  date: DateTime.DateTime
-}) => {
-  const [value, setValue] = useState(DateTime.formatIsoDate(date))
-  return (
-    <box flexDirection='column' gap={1}>
-      <text>Go to date</text>
-      <input
-        focused
-        placeholder='YYYY-MM-DD'
-        onSubmit={onSubmit}
-        value={value}
-        onChange={setValue}
-        padding={1}
-      />
-    </box>
-  )
-}
 
 const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
   <box
@@ -135,11 +107,11 @@ const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
   </box>
 )
 
-const isSubsequentWaiting = <A, E>(result: Result.Result<A, E>): boolean =>
-  Result.isNotInitial(result) && Result.isWaiting(result)
+const isSubsequentWaiting = <A, E>(result: AsyncResult.AsyncResult<A, E>): boolean =>
+  AsyncResult.isNotInitial(result) && AsyncResult.isWaiting(result)
 
-const whenSuccess = <A, E>(result: Result.Result<A, E>, onSuccess: (a: A) => void) => {
-  if (Result.isSuccess(result)) {
+const whenSuccess = <A, E>(result: AsyncResult.AsyncResult<A, E>, onSuccess: (a: A) => void) => {
+  if (AsyncResult.isSuccess(result)) {
     onSuccess(result.value)
   }
 }
@@ -202,7 +174,7 @@ const GameDetailsView = ({ gamePk }: { gamePk: number }) => {
   return (
     <box flexDirection='column' padding={2} borderStyle='single'>
       <text>Game Details for {gamePk}</text>
-      {Result.builder(game)
+      {AsyncResult.builder(game)
         .onSuccess(({ gamePk }) => <text>Game details for {gamePk}!</text>)
         .onError((error) => <text>Error loading game: {String(error)}</text>)
         .orNull()}
@@ -212,10 +184,10 @@ const GameDetailsView = ({ gamePk }: { gamePk: number }) => {
 
 const App = () => {
   const { currentView, isNestedView, pushView, popView } = useCurrentView()
-  const dialog = useDialog()
-  const isDialogOpen = useDialogState((state) => state.isOpen)
+  const [isGoToDateOpen, setIsGoToDateOpen] = useState(false)
 
   const [date, setDate] = useAtom(dateAtom)
+  const [goToDateValue, setGoToDateValue] = useState(DateTime.formatIsoDate(date))
   const goToDate = useAtomSet(goToDateAtom, { mode: 'promise' })
   const schedule = useAtomValue(scheduleAtom(date))
   const refreshSchedule = useAtomRefresh(scheduleAtom(date))
@@ -230,8 +202,8 @@ const App = () => {
 
   const refreshDuration = useMemo(
     () =>
-      Option.fromNullable(
-        Result.builder(schedule)
+      Option.fromNullishOr(
+        AsyncResult.builder(schedule)
           .onSuccess(({ totalGames, games }) =>
             totalGames === 0
               ? null
@@ -254,7 +226,12 @@ const App = () => {
   }, [refreshSchedule, refreshDuration])
 
   useKeyboard((key) => {
-    if (isDialogOpen) {
+    if (isGoToDateOpen) {
+      if (key.name === 'escape') {
+        setIsGoToDateOpen(false)
+      } else if (key.name === 'return') {
+        void goToDate(goToDateValue).then(() => setIsGoToDateOpen(false))
+      }
       return
     }
 
@@ -285,19 +262,10 @@ const App = () => {
       Match.when(Match.is('p'), () => setDate(previousDay)),
       Match.when(Match.is('n'), () => setDate(nextDay)),
       Match.when(Match.is('t'), () => setDate(now)),
-      Match.when(Match.is('g'), () =>
-        dialog.show({
-          content: () => (
-            <GoToDate
-              date={date}
-              onSubmit={async (value) => {
-                await goToDate(value)
-                dialog.close()
-              }}
-            />
-          ),
-        }),
-      ),
+      Match.when(Match.is('g'), () => {
+        setGoToDateValue(DateTime.formatIsoDate(date))
+        setIsGoToDateOpen(true)
+      }),
       Match.when(Match.is('j'), () => {}),
       Match.when(Match.is('k'), () => {}),
       Match.when(Match.is('?'), () => {
@@ -330,11 +298,11 @@ const App = () => {
                     <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
                   </text>
                   <box alignSelf='center' minHeight={4}>
-                    {isSubsequentWaiting(schedule) ? <spinner name='bouncingBall' /> : null}
+                    {isSubsequentWaiting(schedule) ? <text>Loading...</text> : null}
                   </box>
                 </box>
                 <box flexGrow={0}>
-                  {Result.builder(schedule)
+                  {AsyncResult.builder(schedule)
                     .onInitial(() => (
                       <CenteredContainer>
                         <Loading />
@@ -370,8 +338,18 @@ const App = () => {
           ),
           GameDetails: ({ gamePk }) => <GameDetailsView gamePk={gamePk} />,
         })}
+        {isGoToDateOpen ? (
+          <box
+            position='absolute'
+            flexDirection='column'
+            padding={2}
+            borderStyle='single'
+            backgroundColor='black'
+          >
+            <GoToDate value={goToDateValue} onChange={setGoToDateValue} />
+          </box>
+        ) : null}
       </box>
-      <Toaster />
     </>
   )
 }
@@ -381,11 +359,7 @@ const leaveAltScreenCommand = Console.log('\x1b[?1049l')
 
 const renderApp = Effect.tryPromise(async () => {
   const renderer = await createCliRenderer()
-  return createRoot(renderer).render(
-    <DialogProvider {...themes.minimal}>
-      <App />
-    </DialogProvider>,
-  )
+  return createRoot(renderer).render(<App />)
 })
 
 const program = Effect.gen(function* () {

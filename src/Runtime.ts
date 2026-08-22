@@ -1,5 +1,5 @@
-import { Atom } from '@effect-atom/atom-react'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import * as Atom from 'effect/unstable/reactivity/Atom'
 
 import * as Layers from './Layers'
 

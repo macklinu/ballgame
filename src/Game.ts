@@ -1,18 +1,18 @@
-import * as HttpClient from '@effect/platform/HttpClient'
-import * as HttpClientError from '@effect/platform/HttpClientError'
-import * as HttpClientResponse from '@effect/platform/HttpClientResponse'
 import { Effect } from 'effect'
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
-import * as ParseResult from 'effect/ParseResult'
 import * as Schema from 'effect/Schema'
+import * as HttpClient from 'effect/unstable/http/HttpClient'
+import * as HttpClientError from 'effect/unstable/http/HttpClientError'
+import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
+import * as Model from 'effect/unstable/schema/Model'
 
 import * as Status from './Status'
 import * as Team from './Team'
 
-const InningState = Schema.Literal('Top', 'Bottom', 'Middle', 'End')
+const InningState = Schema.Literals(['Top', 'Bottom', 'Middle', 'End'])
 type InningState = typeof InningState.Type
 
 const abbreviatedInningState = (inningState: InningState) => {
@@ -31,7 +31,7 @@ class Linescore extends Schema.Class<Linescore>('Linescore')({
 }) {
   static readonly Live = class Live extends Linescore.extend<Live>('Live')({
     inningState: InningState,
-    inningHalf: Schema.Literal('Top', 'Bottom'),
+    inningHalf: Schema.Literals(['Top', 'Bottom']),
     currentInning: Schema.Number,
     currentInningOrdinal: Schema.String,
     outs: Schema.Number,
@@ -43,11 +43,11 @@ class Linescore extends Schema.Class<Linescore>('Linescore')({
 
 export class Game extends Schema.Class<Game>('Game')({
   gamePk: Schema.Number,
-  gameGuid: Schema.UUID,
+  gameGuid: Schema.String.check(Schema.isUUID()),
   gameType: Schema.String,
   season: Schema.String,
-  gameDate: Schema.DateTimeUtc,
-  officialDate: Schema.DateTimeUtc,
+  gameDate: Schema.DateTimeUtcFromString,
+  officialDate: Schema.DateTimeUtcFromString,
   teams: Schema.Struct({
     away: Schema.Struct({
       leagueRecord: Schema.Struct({
@@ -55,7 +55,7 @@ export class Game extends Schema.Class<Game>('Game')({
         losses: Schema.Number,
         pct: Schema.String,
       }),
-      score: Schema.Number.pipe(Schema.OptionFromUndefinedOr),
+      score: Model.optionalOption(Schema.Number),
       team: Team.Team,
       splitSquad: Schema.Boolean,
       seriesNumber: Schema.Number,
@@ -66,7 +66,7 @@ export class Game extends Schema.Class<Game>('Game')({
         losses: Schema.Number,
         pct: Schema.String,
       }),
-      score: Schema.Number.pipe(Schema.OptionFromUndefinedOr),
+      score: Model.optionalOption(Schema.Number),
       team: Team.Team,
       splitSquad: Schema.Boolean,
       seriesNumber: Schema.Number,
@@ -97,7 +97,7 @@ export class FinalGame extends Game.extend<FinalGame>('FinalGame')({
   linescore: Linescore.Live,
 }) {}
 
-export const GameSchema = Schema.Union(PreviewGame, LiveGame, FinalGame)
+export const GameSchema = Schema.Union([PreviewGame, LiveGame, FinalGame])
 
 export const currentTime = Match.type<Game>().pipe(
   Match.when(Match.instanceOf(PreviewGame), (game) =>
@@ -130,27 +130,25 @@ export class GameFeedLive extends Schema.Class<GameFeedLive>('GameFeedLive')({
   liveData: Schema.Unknown,
 }) {}
 
-export class GameApi extends Context.Tag('@macklinu/ballgame/Game/GameApi')<
+export class GameApi extends Context.Service<
   GameApi,
   {
     readonly feed: (
       gamePk: number,
-    ) => Effect.Effect<GameFeedLive, ParseResult.ParseError | HttpClientError.HttpClientError>
+    ) => Effect.Effect<GameFeedLive, Schema.SchemaError | HttpClientError.HttpClientError>
   }
->() {
+>()('@macklinu/ballgame/Game/GameApi') {
   static readonly layerLive = Layer.effect(
     GameApi,
     Effect.gen(function* () {
       const httpClient = yield* HttpClient.HttpClient
 
       return GameApi.of({
-        feed: (gamePk) =>
+        feed: Effect.fn('GameApi.feed')((gamePk) =>
           httpClient
             .get(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
-            .pipe(
-              Effect.flatMap(HttpClientResponse.schemaBodyJson(GameFeedLive)),
-              Effect.withSpan('GameApi.feed'),
-            ),
+            .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(GameFeedLive))),
+        ),
       })
     }),
   )

@@ -28,8 +28,9 @@
     "plugins": [
       {
         "name": "@effect/language-service",
-        "namespaceImportPackages": ["effect", "@effect/platform", "@effect/platform-bun"]
+        "namespaceImportPackages": ["effect", "@effect/platform-bun"]
       }
     ]
-  }
+  },
+  "include": ["src"]
 }

@@ -1,8 +1,9 @@
-import { Atom, useAtom } from '@effect-atom/atom-react'
+import { useAtom } from '@effect/atom-react'
 import * as Array from 'effect/Array'
 import * as Data from 'effect/Data'
 import * as Equal from 'effect/Equal'
 import * as Option from 'effect/Option'
+import * as Atom from 'effect/unstable/reactivity/Atom'
 import { useCallback } from 'react'
 
 export type View = Data.TaggedEnum<{
@@ -19,10 +20,8 @@ export const useCurrentView = () => {
   const pushView = useCallback(
     (view: View) => {
       setViews((views) =>
-        Option.fromNullable(Array.last(views)).pipe(
-          Option.filterMap((lastView) =>
-            Equal.equals(lastView, view) ? Option.none() : Option.some(lastView),
-          ),
+        Array.last(views).pipe(
+          Option.filter((lastView) => !Equal.equals(lastView, view)),
           Option.map(() => Array.append(views, view)),
           Option.getOrElse(() => views),
         ),

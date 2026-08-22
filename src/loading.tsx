@@ -1,1 +1,1 @@
-export const Loading = () => <spinner name='dotsCircle' />
+export const Loading = () => <text>Loading...</text>

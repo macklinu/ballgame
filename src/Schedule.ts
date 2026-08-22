@@ -1,19 +1,18 @@
-import * as FileSystem from '@effect/platform/FileSystem'
-import * as HttpClient from '@effect/platform/HttpClient'
-import * as HttpClientError from '@effect/platform/HttpClientError'
-import * as HttpClientResponse from '@effect/platform/HttpClientResponse'
-import * as Path from '@effect/platform/Path'
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as FileSystem from 'effect/FileSystem'
 import * as Layer from 'effect/Layer'
-import * as ParseResult from 'effect/ParseResult'
+import * as Path from 'effect/Path'
 import * as Schema from 'effect/Schema'
+import * as HttpClient from 'effect/unstable/http/HttpClient'
+import * as HttpClientError from 'effect/unstable/http/HttpClientError'
+import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
 
 import * as Game from './Game'
 
 export class ScheduleDate extends Schema.Class<ScheduleDate>('ScheduleDate')({
-  date: Schema.DateTimeUtc,
+  date: Schema.DateTimeUtcFromString,
   totalGames: Schema.Number,
   games: Schema.Array(Game.GameSchema),
 }) {
@@ -30,21 +29,21 @@ export class ScheduleResponse extends Schema.Class<ScheduleResponse>('ScheduleRe
   dates: Schema.Array(ScheduleDate),
 }) {}
 
-export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/ScheduleService')<
+export class ScheduleService extends Context.Service<
   ScheduleService,
   {
     readonly getSchedule: (
       date: DateTime.DateTime,
-    ) => Effect.Effect<ScheduleDate, ParseResult.ParseError | HttpClientError.HttpClientError>
+    ) => Effect.Effect<ScheduleDate, Schema.SchemaError | HttpClientError.HttpClientError>
   }
->() {
+>()('@macklinu/ballgame/Schedule/ScheduleService') {
   static readonly layerLive = Layer.effect(
     ScheduleService,
     Effect.gen(function* () {
       const httpClient = yield* HttpClient.HttpClient
 
       return ScheduleService.of({
-        getSchedule: (date) =>
+        getSchedule: Effect.fn('ScheduleService.getSchedule')((date) =>
           httpClient
             .get('https://statsapi.mlb.com/api/v1/schedule', {
               urlParams: {
@@ -56,8 +55,8 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
             .pipe(
               Effect.flatMap(HttpClientResponse.schemaBodyJson(ScheduleResponse)),
               Effect.map(({ dates }) => dates[0] ?? ScheduleDate.empty(date)),
-              Effect.withSpan('ScheduleService.getSchedule'),
             ),
+        ),
       })
     }),
   )
@@ -69,23 +68,19 @@ export class ScheduleService extends Context.Tag('@macklinu/ballgame/Schedule/Sc
       const path = yield* Path.Path
 
       return ScheduleService.of({
-        getSchedule: (date) =>
+        getSchedule: Effect.fn('ScheduleService.getSchedule')((date) =>
           Effect.gen(function* () {
             const isoDate = DateTime.formatIsoDate(date)
 
             const json = yield* fs.readFileString(
               path.resolve('./src/fixtures/stats-api/schedule', `${isoDate}.json`),
             )
-            const response = yield* Schema.decodeUnknown(
-              Schema.compose(Schema.parseJson(), ScheduleResponse),
+            const response = yield* Schema.decodeUnknownEffect(
+              Schema.fromJsonString(ScheduleResponse),
             )(json)
             return response.dates[0] ?? ScheduleDate.empty(date)
-          }).pipe(
-            Effect.catchTags({
-              BadArgument: () => Effect.succeed(ScheduleDate.empty(date)),
-              SystemError: () => Effect.succeed(ScheduleDate.empty(date)),
-            }),
-          ),
+          }).pipe(Effect.catchTag('PlatformError', () => Effect.succeed(ScheduleDate.empty(date)))),
+        ),
       })
     }),
   )

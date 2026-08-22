@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "DEV=true TZ=UTC bun run --watch src/index.tsx",
-    "lint": "oxlint",
+    "lint": "oxlint --disable-nested-config",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "prepare": "husky"

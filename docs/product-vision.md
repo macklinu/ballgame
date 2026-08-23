@@ -56,7 +56,9 @@ deterministic test inputs only.
 
 Ballgame will provide two distinct, toggleable top-level schedule views. The daily bulb board is the old-school view. The command-center ranking is the new-school view. They must not be combined into one screen or presented as sort modes within the same layout.
 
-Both views use the selected date as their source of truth and open the same selected-game detail view. Switching views must be a discoverable keyboard action. Its exact key binding remains open.
+Both views use the selected date as their source of truth and open the same
+selected-game detail view. `b` opens the daily bulb board and `c` opens the
+command center. The footer must make both commands discoverable.
 
 The main screen will become an old-school outfield scoreboard. It will always separate American League and National League games. Letters and digits should read as individual bulbs in a fixed terminal grid, rather than as generic application cards.
 
@@ -125,7 +127,23 @@ The bulb-board UI is the delivery priority. The first shippable release includes
 
 ### Command-center live-game ranking
 
-The command-center is a separate new-school view that ranks in-progress games from most to least exciting to watch. It is not a bulb-board layout and must use ordinary compact text for its ranked rows and factor explanations.
+The command-center is a separate new-school view that ranks every in-progress
+game from most to least exciting to watch. It is not a bulb-board layout and
+uses ordinary, compact text for baseball data rather than bulb typography.
+
+Each row shows rank, matchup, live score, inning, outs, and a compact
+first/second/third-base diamond with lit and unlit symbols. Season `W–L`
+records appear beside the teams when the terminal width permits; hide records
+before clipping live-game state. The rows do not show the ranking total or
+per-factor arithmetic. `?` opens a compact help overlay with the fixed model
+and point tables instead. If the live feed lacks runner or out data, omit only
+that field from the row, retain the game in the ranking, and record diagnostics
+internally. Never depict unknown bases as empty.
+
+The command center shows every live game in ranked order. Up/Down and `j`/`k`
+move the selected row; Enter opens the selected game detail. If the selected
+date has no live games, retain the command-center view and show a clear empty
+state rather than redirecting to the board.
 
 Refresh the selected date's live schedule and recompute this ranking every 15
 seconds while it includes an in-progress game. Do not add periodic refreshes
@@ -133,8 +151,36 @@ for past dates or schedules with no live games. Preserve the last successful
 schedule after a refresh failure, retain its last successful-update timestamp,
 and continue the 15-second retry cycle.
 
-Its initial model must be deterministic and explainable, not an opaque model. Use a situation score with documented points for runners by base, fewer than two outs, later innings, and a close score. Show the contributing factors with the ranking. For an equal score, rank the later inning first, then use `GameRef` as the deterministic final tie-breaker. The point weights remain an open decision.
-The ranking model and its independent view implementation may proceed in parallel with bulb-board work, but they must not delay the bulb-board release.
+The v1 model is deterministic, pure, and uses a small fixed set of point
+values. It is a fixed late-game-drama profile, not a user setting. Its
+independent pure functions must have table-driven unit tests covering point
+boundaries, standings snapshots, unavailable situation data, and deterministic
+tie-breaks.
+
+```text
+rank = on-field drama (maximum 16) + standings stakes (maximum 6)
+```
+
+| On-field factor | Points                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| Score margin    | Tied: 6; 1 run: 5; 2 runs: 3; 3 runs: 1; 4+ runs: 0                                      |
+| Inning          | 1–3: 0; 4–6: 1; 7th: 2; 8th: 3; 9th: 4; 10th+: 5                                         |
+| Runners         | Empty: 0; any runner: 1; runner in scoring position: 2; multiple RISP or bases loaded: 3 |
+| Outs            | 0: 2; 1: 1; 2: 0                                                                         |
+
+Standings stakes apply only to regular-season games. For each league, classify
+the three division leaders, three current wild-card holders, and the next
+three teams in the official wild-card order. A team contributes: division
+leader 3; wild-card holder 2; first, second, or third chaser 1, 0.5, or 0.25;
+all others 0. The two teams' contributions are added, so a matchup can receive
+at most six standings points. Spring Training and postseason games rank only
+on the on-field model. For equal rank totals, rank the later inning first, then
+use `GameRef` as the deterministic final tie-breaker.
+
+The future backlog may add selectable scoring-opportunity and close-score
+profiles, in that order. Do not add configuration or those profiles to v1.
+The ranking model and its independent view implementation may proceed in
+parallel with bulb-board work, but they must not delay the bulb-board release.
 
 ### External MLB.TV action
 
@@ -149,13 +195,18 @@ Keep `t` for "today". Use lowercase `v` to open MLB.TV for the selected game.
 3. Add Git subtrees for the selected upstream Effect and OpenTUI revisions at `vendor/effect` and `vendor/opentui`. Record each upstream repository URL, pinned commit, package version, and subtree update procedure. `@effect/atom-react` remains a separate framework-binding package in Effect v4; identify its upstream source during this task and add a local source tree if `vendor/effect` does not contain it. Agents must use these local source trees for version-specific library inspection.
 4. Define and test the normalized domain models plus provider-neutral service contracts before adding new MLB-specific features.
 5. Define the notification settings, alert threshold, and deduplication rule before starting an alert worker.
+6. Assess the current keyboard listener before adding command-center controls.
+   Replace it if necessary with context-aware commands and a testable command
+   dispatcher; do not layer new global key conditions onto an unassessed
+   listener.
 
 ## Release sequence
 
 1. Restore reliable schedule data from the MLB API while retaining deterministic fixtures for tests.
 2. Deliver the selectable daily bulb-board and a useful game detail view.
 3. Support past-date schedule browsing with final scores.
-4. Add the separate toggleable command-center view with transparent live-game ranking after the score model and display rule are agreed.
+4. Add the separate `c` command-center view with the documented live-game
+   ranking model and display rules.
 5. Add the external MLB.TV action after its supported URL rule and keybinding are agreed.
 
 ## Data freshness and failure behavior
@@ -229,9 +280,11 @@ Long-running polling or notification work must be scoped in its owning layer. It
 - The selected date is the source of truth for all schedule views.
 - Data freshness matters only for in-progress games. Refresh behavior must not make history or final games noisy.
 - A game state must have one display meaning. Do not make postponed, final, and live games visually ambiguous.
-- Ranking must be stable for unchanged game data and explainable from displayed state.
+- Ranking must be stable for unchanged game data and explainable through its
+  help overlay without displacing baseball data from the ranked rows.
 - Keyboard actions must be discoverable in the terminal and must not silently replace an existing action.
-- Network failures must stay visible to the user and must not erase the last known valid schedule without an explicit stale-data rule.
+- Network failures must preserve the last known valid schedule and its last
+  successful-update timestamp; diagnostics capture individual failed refreshes.
 - The app should prefer documented MLB identifiers and endpoints over inferred URLs or scraped web pages.
 - The bulb-board may use Unicode and truecolor. It must define a readable plain-text fallback for terminals without either capability.
 
@@ -241,13 +294,13 @@ Long-running polling or notification work must be scoped in its owning layer. It
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | First usable release        | Daily board plus game details. Defer live ranking and stream launch.                                                                     |
 | Historical mode             | Browse past schedules and final scores.                                                                                                  |
-| Ranking approach            | Transparent, deterministic rules with visible factors.                                                                                   |
+| Ranking approach            | Transparent, deterministic rules explained in help without per-row factor labels.                                                        |
 | Stream destination          | MLB.TV page for the selected game, subject to a supported URL rule.                                                                      |
 | Board grouping              | Fixed American League and National League sections.                                                                                      |
 | Detail contract             | Standard box score: status, linescore, compact batting, and compact pitching tables. Defer GameDay-style situation and play-by-play.     |
 | Display baseline            | Unicode and truecolor when available, with a plain-text fallback.                                                                        |
 | In-section order            | Live games first; then scheduled start time.                                                                                             |
-| Initial ranking model       | Situation score; later inning, then `GameRef`, break ties.                                                                               |
+| Initial ranking model       | 16-point on-field drama plus 6-point regular-season standings stakes; later inning, then `GameRef`, break ties.                          |
 | Video key                   | Keep `t` for today; use lowercase `v` for MLB.TV.                                                                                        |
 | Live failure behavior       | Preserve existing data after a failed refresh, display its last successful-update timestamp, and retry every 15 seconds.                 |
 | Confirmed date scope        | Open on the user's local date while retaining previous, next, today, and explicit date navigation.                                       |
@@ -263,16 +316,18 @@ Long-running polling or notification work must be scoped in its owning layer. It
 | Local library sources       | Add pinned upstream Git subtrees at `vendor/effect` and `vendor/opentui` before development resumes.                                     |
 | Bulb typography             | Use custom 3×5 bulbs on the daily board; use 5×7 only for a masthead or selected-game title; keep all detail bodies as ordinary text.    |
 | Base occupancy              | Display a compact first/second/third-base diamond without home plate; leave its normalized data model open until MLB live-feed research. |
-| Schedule views              | Keep the old-school daily bulb board and the new-school command-center ranking as separate, toggleable top-level views.                  |
+| Schedule views              | Keep the daily bulb board and command center separate; `b` opens the board and `c` opens the command center.                             |
 | Command-center update       | While a selected date has an in-progress game, refresh and recompute its excitement ranking every 15 seconds.                            |
+| Command-center rows         | Rank every live game; show baseball data and a base diamond, with responsive records but no inline rank arithmetic.                      |
+| Command-center interaction  | Up/Down or `j`/`k` select; Enter opens details; `?` opens model help; no live game shows an empty state.                                 |
+| Command-center data gaps    | Omit unavailable situation fields, log diagnostics internally, and never portray unknown bases as empty.                                 |
+| Command architecture        | Assess the current listener and use context-aware, testable command dispatch before adding new controls.                                 |
 
 ## Open decisions for the next grilling round
 
-1. What exact point values should runners, outs, inning, and score difference have in the situation score?
-2. What exact 3×5 glyph map, bulb colors, dark-bulb appearance, and plain-text fallback make the board readable before visual implementation starts?
-3. What official MLB.TV URL or supported identifier mapping should `v` open for each scheduled or live game?
-4. Which game-state changes can alert the user, what threshold starts an alert, and how long is the cooldown?
-5. Where do user settings persist, and does macOS notification permission belong to application setup or first use?
-6. What exact normalized error types and provider-selection configuration does the application need?
-7. What normalized current-situation model should provider adapters expose after MLB live-feed research, including runner identity, base occupancy, count, and play context?
-8. Which discoverable key binding should switch between the bulb board and command-center views?
+1. What exact 3×5 glyph map, bulb colors, dark-bulb appearance, and plain-text fallback make the board readable before visual implementation starts?
+2. What official MLB.TV URL or supported identifier mapping should `v` open for each scheduled or live game?
+3. Which game-state changes can alert the user, what threshold starts an alert, and how long is the cooldown?
+4. Where do user settings persist, and does macOS notification permission belong to application setup or first use?
+5. What exact normalized error types and provider-selection configuration does the application need?
+6. What normalized current-situation model should provider adapters expose after MLB live-feed research, including runner identity, base occupancy, count, and play context?

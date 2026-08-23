@@ -18,6 +18,40 @@ The primary user is one technically capable baseball fan. This is not a multi-us
 
 ## Product direction
 
+### Confirmed live-score and box-score contract
+
+The first usable journey is: open Ballgame, scan the local day's MLB slate and
+live scores, then open one game for a standard box score. All normal runtime
+data for that journey comes from the public MLB Stats API; fixtures remain
+deterministic test inputs only.
+
+- **Date and coverage:** The application opens on the user's local calendar
+  date and retains the existing previous-day, next-day, today, and go-to-date
+  navigation. It includes every official MLB game returned for that date,
+  including Spring Training and postseason games.
+- **Schedule:** A live schedule refreshes every 15 seconds. Delayed,
+  postponed, suspended, and cancelled games stay on the slate with MLB's exact
+  status and without an invented score or box score.
+- **Navigation:** Enter or mouse selection opens the selected game. Escape
+  returns to the schedule; left and right arrows remain schedule-selection
+  controls rather than switching games from the details screen.
+- **Details:** The standard game view contains the matchup and status, an
+  inning linescore, compact batting tables (`AB`, `R`, `H`, `RBI`, `BB`, `SO`,
+  `HR`), and compact pitching tables (`IP`, `H`, `R`, `ER`, `BB`, `SO`, `HR`).
+  This is a box score, not a first-release GameDay clone: play-by-play,
+  current-batter/pitcher context, count, runners, and other live-situation
+  features are deferred.
+- **Pregame:** When available, show MLB's pregame lineup or roster data. When
+  confirmed lineups are unavailable, show the teams, scheduled start time,
+  probable pitchers, and a clear “lineups not announced” state.
+- **Freshness and recovery:** A live, open detail view also refreshes every 15
+  seconds and stops once the game is final. Schedule and detail views display
+  a “last updated” timestamp representing the most recent successful MLB data
+  response. A failed refresh preserves the existing data and timestamp; it
+  does not replace the view with an error or claim a newer update. If initial
+  loading fails and there is no data to retain, show a concise error and retry
+  automatically.
+
 ### Daily scoreboard board
 
 Ballgame will provide two distinct, toggleable top-level schedule views. The daily bulb board is the old-school view. The command-center ranking is the new-school view. They must not be combined into one screen or presented as sort modes within the same layout.
@@ -47,7 +81,9 @@ Use a 3×5 glyph as the default for team abbreviations, scores, inning, outs, an
 
 At an 80-column terminal, show one compact board column and stack the AL and NL sections vertically. Do not attempt two detailed matchup columns. Wider terminals may add breathing room, but must not require wider glyphs or a second layout to preserve readability.
 
-Use ordinary compact text for secondary game information, including scheduled time, detailed delay reason, stale-data age, and long status labels. Do not turn every word into bulbs.
+Use ordinary compact text for secondary game information, including scheduled
+time, detailed delay reason, the last successful-update timestamp, and long
+status labels. Do not turn every word into bulbs.
 
 The bulb grid must preserve these rules:
 
@@ -74,7 +110,14 @@ Before shipping the bulb board, run visual smoke checks with scheduled, live, fi
 
 ### Game details
 
-Opening the selected game must show a useful box-score-oriented detail screen. The first release must show the game situation, inning linescore, batting summary table, and pitching summary table. For live games, the situation includes the current batter and pitcher, count, runners, outs, and inning state when the API provides them. A play list is deferred. For completed games, the view must preserve the final result and the same box-score context.
+Opening the selected game must show the standard box score defined in the
+confirmed live-score and box-score contract: matchup and status, inning
+linescore, batting summary table, and pitching summary table. A live
+first-release view does not include current batter/pitcher, count, runners,
+or play-by-play; those are GameDay-like features deferred beyond this scope.
+For completed games, the view preserves the final result and the same box-score
+context. Before first pitch, it follows the pregame contract for lineups,
+probable pitchers, and unavailable lineups.
 
 The selected-game title may use the bulb renderer. The detail view body must not.
 
@@ -84,7 +127,11 @@ The bulb-board UI is the delivery priority. The first shippable release includes
 
 The command-center is a separate new-school view that ranks in-progress games from most to least exciting to watch. It is not a bulb-board layout and must use ordinary compact text for its ranked rows and factor explanations.
 
-Refresh the selected date's live schedule and recompute this ranking every 15 seconds while it includes an in-progress game. Do not add periodic refreshes for past dates or schedules with no live games. Preserve the last successful schedule after a refresh failure, mark it stale with its age, show the failure, and continue the 15-second retry cycle.
+Refresh the selected date's live schedule and recompute this ranking every 15
+seconds while it includes an in-progress game. Do not add periodic refreshes
+for past dates or schedules with no live games. Preserve the last successful
+schedule after a refresh failure, retain its last successful-update timestamp,
+and continue the 15-second retry cycle.
 
 Its initial model must be deterministic and explainable, not an opaque model. Use a situation score with documented points for runners by base, fewer than two outs, later innings, and a close score. Show the contributing factors with the ranking. For an equal score, rank the later inning first, then use `GameRef` as the deterministic final tie-breaker. The point weights remain an open decision.
 The ranking model and its independent view implementation may proceed in parallel with bulb-board work, but they must not delay the bulb-board release.
@@ -115,7 +162,12 @@ Keep `t` for "today". Use lowercase `v` to open MLB.TV for the selected game.
 
 The runtime application must use the MLB API for normal operation. Schedule fixtures remain deterministic test inputs; they must not be the normal data source.
 
-For a live game, preserve the last successful schedule or game-feed state after a request failure. Mark the displayed state stale with its age, show the failure in either schedule view, and retry automatically every 15 seconds. Do not erase the bulb board or command-center ranking merely because a refresh fails.
+For a live game, preserve the last successful schedule or game-feed state after
+a request failure and retry automatically every 15 seconds. Display the time
+of the last successful response. Do not erase the bulb board or command-center
+ranking, replace the established data with an error, or present a failed retry
+as a newer update. Initial loading, where no successful response exists, shows
+a concise retrying error instead.
 
 ## Provider-neutral Effect architecture
 
@@ -185,27 +237,34 @@ Long-running polling or notification work must be scoped in its owning layer. It
 
 ## Decisions made in this session
 
-| Topic                 | Decision                                                                                                                                 |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| First usable release  | Daily board plus game details. Defer live ranking and stream launch.                                                                     |
-| Historical mode       | Browse past schedules and final scores.                                                                                                  |
-| Ranking approach      | Transparent, deterministic rules with visible factors.                                                                                   |
-| Stream destination    | MLB.TV page for the selected game, subject to a supported URL rule.                                                                      |
-| Board grouping        | Fixed American League and National League sections.                                                                                      |
-| Detail contract       | Game situation, linescore, batting summary, and pitching summary. No first-release play list.                                            |
-| Display baseline      | Unicode and truecolor when available, with a plain-text fallback.                                                                        |
-| In-section order      | Live games first; then scheduled start time.                                                                                             |
-| Initial ranking model | Situation score; later inning, then `GameRef`, break ties.                                                                               |
-| Video key             | Keep `t` for today; use lowercase `v` for MLB.TV.                                                                                        |
-| Live failure behavior | Preserve and age-mark last successful data, show the error in either schedule view, and retry every 15 seconds.                          |
-| Data architecture     | Provider-neutral domain contracts; complete MLB and fixture adapter layers.                                                              |
-| Notifications         | Configurable off, in-app, macOS, or both; sound is user controlled.                                                                      |
-| Effect preparation    | Upgrade to a pinned Effect v4 release candidate before feature work uses v4 patterns.                                                    |
-| Local library sources | Add pinned upstream Git subtrees at `vendor/effect` and `vendor/opentui` before development resumes.                                     |
-| Bulb typography       | Use custom 3×5 bulbs on the daily board; use 5×7 only for a masthead or selected-game title; keep all detail bodies as ordinary text.    |
-| Base occupancy        | Display a compact first/second/third-base diamond without home plate; leave its normalized data model open until MLB live-feed research. |
-| Schedule views        | Keep the old-school daily bulb board and the new-school command-center ranking as separate, toggleable top-level views.                  |
-| Command-center update | While a selected date has an in-progress game, refresh and recompute its excitement ranking every 15 seconds.                            |
+| Topic                       | Decision                                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| First usable release        | Daily board plus game details. Defer live ranking and stream launch.                                                                     |
+| Historical mode             | Browse past schedules and final scores.                                                                                                  |
+| Ranking approach            | Transparent, deterministic rules with visible factors.                                                                                   |
+| Stream destination          | MLB.TV page for the selected game, subject to a supported URL rule.                                                                      |
+| Board grouping              | Fixed American League and National League sections.                                                                                      |
+| Detail contract             | Standard box score: status, linescore, compact batting, and compact pitching tables. Defer GameDay-style situation and play-by-play.     |
+| Display baseline            | Unicode and truecolor when available, with a plain-text fallback.                                                                        |
+| In-section order            | Live games first; then scheduled start time.                                                                                             |
+| Initial ranking model       | Situation score; later inning, then `GameRef`, break ties.                                                                               |
+| Video key                   | Keep `t` for today; use lowercase `v` for MLB.TV.                                                                                        |
+| Live failure behavior       | Preserve existing data after a failed refresh, display its last successful-update timestamp, and retry every 15 seconds.                 |
+| Confirmed date scope        | Open on the user's local date while retaining previous, next, today, and explicit date navigation.                                       |
+| Confirmed MLB coverage      | Include every official MLB game returned for the selected date, including Spring Training and postseason.                                |
+| Confirmed box score         | Standard inning linescore plus compact batting and pitching tables; defer GameDay-style situation and play-by-play features.             |
+| Confirmed pregame           | Show lineup or roster data when available; otherwise show teams, time, probable pitchers, and “lineups not announced.”                   |
+| Confirmed detail navigation | Escape returns to the schedule; changing games remains a schedule-screen action.                                                         |
+| Confirmed refresh display   | Refresh live schedule and open live details every 15 seconds; display the last successful-update timestamp and preserve it on failure.   |
+| Initial-load failure        | Show a concise error and retry automatically when no successful data is available yet.                                                   |
+| Data architecture           | Provider-neutral domain contracts; complete MLB and fixture adapter layers.                                                              |
+| Notifications               | Configurable off, in-app, macOS, or both; sound is user controlled.                                                                      |
+| Effect preparation          | Upgrade to a pinned Effect v4 release candidate before feature work uses v4 patterns.                                                    |
+| Local library sources       | Add pinned upstream Git subtrees at `vendor/effect` and `vendor/opentui` before development resumes.                                     |
+| Bulb typography             | Use custom 3×5 bulbs on the daily board; use 5×7 only for a masthead or selected-game title; keep all detail bodies as ordinary text.    |
+| Base occupancy              | Display a compact first/second/third-base diamond without home plate; leave its normalized data model open until MLB live-feed research. |
+| Schedule views              | Keep the old-school daily bulb board and the new-school command-center ranking as separate, toggleable top-level views.                  |
+| Command-center update       | While a selected date has an in-progress game, refresh and recompute its excitement ranking every 15 seconds.                            |
 
 ## Open decisions for the next grilling round
 

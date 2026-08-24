@@ -1,10 +1,22 @@
 # Ballgame product vision
 
+> **Planning status (2026-08-23):**
+> [Foundation decisions](foundation-decisions.md) is the current authority for
+> first-release scope, architecture boundaries, tooling, fixture publication,
+> and release process. This document preserves the product exploration that led
+> to those decisions. Where the documents disagree, the foundation decisions
+> win.
+
 ## Purpose
 
-Ballgame is a personal terminal user interface for following MLB games through the public MLB Stats API. It must make one day of games easy to scan, make a selected game easy to inspect, and later make high-leverage live games easy to find.
+Ballgame is an independent terminal user interface for following MLB games
+through public MLB endpoints. It must make one day of games easy to scan, make
+a selected game easy to inspect, and later make high-leverage live games easy
+to find.
 
-The primary user is one technically capable baseball fan. This is not a multi-user service, a betting tool, or a replacement for the MLB web site.
+The primary user is a technically capable baseball fan. This is not a multi-user
+service, a betting tool, a replacement for the MLB web site, or an official MLB
+product.
 
 ## Current application facts
 
@@ -102,7 +114,11 @@ For a live game, the board may show a compact diamond-shaped indicator with the 
 
 Start with a small, fixed-size composition of ordinary OpenTUI text and box nodes. A custom renderable is not required unless profiling or a later interaction requirement proves that ordinary composition is insufficient.
 
-Do not define the domain or component input as three Boolean fields now. First inspect the current MLB live-feed shapes and identify the normalized baseball situation that serves both base occupancy and later play-by-play. The provider adapter must map the MLB response into that future provider-neutral model. The display then derives which base positions are lit. Unknown runner state must never appear as an empty diamond.
+Do not define the domain or component input as three Boolean fields now. If a
+future release adds base occupancy, inspect the current MLB live-feed shapes
+and identify a normalized situation model first. The display then derives which
+base positions are lit. Unknown runner state must never appear as an empty
+diamond.
 
 Visual checks must cover empty bases, each single occupied base, every two-base combination, bases loaded, and unavailable runner data.
 
@@ -179,8 +195,8 @@ use `GameRef` as the deterministic final tie-breaker.
 
 The future backlog may add selectable scoring-opportunity and close-score
 profiles, in that order. Do not add configuration or those profiles to v1.
-The ranking model and its independent view implementation may proceed in
-parallel with bulb-board work, but they must not delay the bulb-board release.
+The ranking model and its independent view are deliberately deferred until
+after the bulb-board-and-details release.
 
 ### External MLB.TV action
 
@@ -188,17 +204,14 @@ A later key action will open the selected game on MLB.TV in the system browser. 
 
 Keep `t` for "today". Use lowercase `v` to open MLB.TV for the selected game.
 
-## Pre-development gates
+## Foundation gates
 
-1. Upgrade the application to a pinned Effect v4 release candidate. This is required before active feature work resumes. The migration plan must identify the selected release candidate, its matching API documentation, and the replacement for each incompatible v3 API.
-2. Upgrade OpenTUI to a pinned compatible release as part of the dependency modernization work. Record the selected version, breaking UI or input changes, and the visual smoke-test plan before feature work changes views.
-3. Add Git subtrees for the selected upstream Effect and OpenTUI revisions at `vendor/effect` and `vendor/opentui`. Record each upstream repository URL, pinned commit, package version, and subtree update procedure. `@effect/atom-react` remains a separate framework-binding package in Effect v4; identify its upstream source during this task and add a local source tree if `vendor/effect` does not contain it. Agents must use these local source trees for version-specific library inspection.
-4. Define and test the normalized domain models plus provider-neutral service contracts before adding new MLB-specific features.
-5. Define the notification settings, alert threshold, and deduplication rule before starting an alert worker.
-6. Assess the current keyboard listener before adding command-center controls.
-   Replace it if necessary with context-aware commands and a testable command
-   dispatcher; do not layer new global key conditions onto an unassessed
-   listener.
+The original pre-development gates were recorded before the current dependency
+pins and subtrees existed. The live foundation gates—including the Node/Bun
+runtime boundary, retained `vendor/` subtrees, normalized MLB adapter boundary,
+Nub contributor contract, derived fixtures, and release checks—now live in
+[Foundation decisions](foundation-decisions.md). Do not revive the original
+Effect-v3 migration or generic-provider gates from this section.
 
 ## Release sequence
 
@@ -220,36 +233,45 @@ ranking, replace the established data with an error, or present a failed retry
 as a newer update. Initial loading, where no successful response exists, shows
 a concise retrying error instead.
 
-## Provider-neutral Effect architecture
+## Normalized MLB adapter architecture
 
-The application domain must not depend on MLB field names, endpoints, or numeric `gamePk` values. It needs normalized domain models for a baseball schedule, game, team, game state, linescore, box score, and play. Provider-specific payload schemas are private adapter types and must map into these models at the provider boundary.
+The application domain must not depend on MLB field names, endpoints, or numeric
+`gamePk` values. It needs normalized domain models for a baseball schedule,
+game, team, game state, linescore, and box score. Provider-specific payload
+schemas are private adapter types and must map into these models at the MLB
+adapter boundary.
 
-`GameRef` must identify a game as `{ provider, id }`, where `provider` identifies MLB or a future provider and `id` is that provider's opaque identifier. Do not expose MLB `gamePk` as the general application game identifier. The same rule applies to provider-specific team identifiers.
+Use an application-owned opaque game reference; do not expose MLB `gamePk` as
+the general application identifier. The same rule applies to provider-specific
+team identifiers.
 
-The application layer will depend on provider-neutral service contracts:
+The application layer will depend on normalized MLB-facing service contracts:
 
 - `ScheduleService`: obtain a normalized schedule for a date.
 - `GameService`: obtain normalized game details for a `GameRef`.
-- `BaseballDataProvider`: an optional composition boundary that owns both services when an implementation needs one provider-wide client, rate limit, or configuration.
+- `MlbClient`: an optional composition boundary for shared MLB HTTP concerns.
 
-Each method must return domain values and typed domain errors, not raw HTTP, JSON parsing, or provider error types. `GameNotFound`, unavailable provider, malformed provider response, and rate limiting are useful domain-level failure categories. The exact error taxonomy remains a design task.
-
-An MLB adapter layer will implement these contracts from MLB HTTP DTOs. A fixture layer will implement the same contracts from deterministic fixtures. The application runtime selects one complete provider layer; consumers do not branch on provider type. This makes an MLB-to-Women's-Pro-Baseball-League or MLB-to-Korean-baseball replacement an adapter and composition change, not a UI rewrite.
+Each method must return domain values and typed application errors, not raw HTTP,
+JSON parsing, or provider error types. Test fixtures support these contracts but
+are not a selectable runtime provider. A generic multi-provider layer is
+deferred until a real product requirement justifies it.
 
 ```text
 OpenTUI views and application workflows
         │
         ├── ScheduleService ──┐
-        └── GameService ──────┤ provider-neutral domain contracts
+        └── GameService ──────┤ normalized Ballgame domain contracts
                                │
-              ┌────────────────┴────────────────┐
-              │                                 │
-         Mlb.layer                         Fixture.layer
-              │                                 │
-       MLB HTTP DTOs                     fixture DTOs
+                          Mlb.layer
+                               │
+                         MLB HTTP DTOs
 ```
 
-After the required upgrade to the pinned Effect v4 release candidate, define service tags with `Context.Service`, implement real adapters with `Layer.effect`, and use `Effect.fn` for public operations. Use `Layer.succeed` or `Layer.sync` for fakes that need no acquisition. The installed repository version is currently Effect `3.19.14`; the available Effect skill targets v4. Do not mix v4 migration work into a feature ticket without the version-specific migration plan.
+The repository already pins matching Effect v4 release-candidate packages. Before
+foundation implementation, validate the exact pinned APIs in the retained local
+sources. Define service tags with `Context.Service`, implement real adapters
+with `Layer.effect`, and use `Effect.fn` for public operations. Use
+`Layer.succeed` or `Layer.sync` for fakes that need no acquisition.
 
 Effect v4 moves core atom and reactivity primitives into `effect/unstable/reactivity`, but React hooks remain in the separate `@effect/atom-react` package. If the application continues to use atoms for the OpenTUI React binding, pin `effect` and `@effect/atom-react` to the same v4 release-candidate version. The `unstable` import path means that upgrade releases can change this API; inspect the local pinned source before each upgrade.
 
@@ -288,46 +310,49 @@ Long-running polling or notification work must be scoped in its owning layer. It
 - The app should prefer documented MLB identifiers and endpoints over inferred URLs or scraped web pages.
 - The bulb-board may use Unicode and truecolor. It must define a readable plain-text fallback for terminals without either capability.
 
-## Decisions made in this session
+## Historical vision snapshot
 
-| Topic                       | Decision                                                                                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| First usable release        | Daily board plus game details. Defer live ranking and stream launch.                                                                     |
-| Historical mode             | Browse past schedules and final scores.                                                                                                  |
-| Ranking approach            | Transparent, deterministic rules explained in help without per-row factor labels.                                                        |
-| Stream destination          | MLB.TV page for the selected game, subject to a supported URL rule.                                                                      |
-| Board grouping              | Fixed American League and National League sections.                                                                                      |
-| Detail contract             | Standard box score: status, linescore, compact batting, and compact pitching tables. Defer GameDay-style situation and play-by-play.     |
-| Display baseline            | Unicode and truecolor when available, with a plain-text fallback.                                                                        |
-| In-section order            | Live games first; then scheduled start time.                                                                                             |
-| Initial ranking model       | 16-point on-field drama plus 6-point regular-season standings stakes; later inning, then `GameRef`, break ties.                          |
-| Video key                   | Keep `t` for today; use lowercase `v` for MLB.TV.                                                                                        |
-| Live failure behavior       | Preserve existing data after a failed refresh, display its last successful-update timestamp, and retry every 15 seconds.                 |
-| Confirmed date scope        | Open on the user's local date while retaining previous, next, today, and explicit date navigation.                                       |
-| Confirmed MLB coverage      | Include every official MLB game returned for the selected date, including Spring Training and postseason.                                |
-| Confirmed box score         | Standard inning linescore plus compact batting and pitching tables; defer GameDay-style situation and play-by-play features.             |
-| Confirmed pregame           | Show lineup or roster data when available; otherwise show teams, time, probable pitchers, and “lineups not announced.”                   |
-| Confirmed detail navigation | Escape returns to the schedule; changing games remains a schedule-screen action.                                                         |
-| Confirmed refresh display   | Refresh live schedule and open live details every 15 seconds; display the last successful-update timestamp and preserve it on failure.   |
-| Initial-load failure        | Show a concise error and retry automatically when no successful data is available yet.                                                   |
-| Data architecture           | Provider-neutral domain contracts; complete MLB and fixture adapter layers.                                                              |
-| Notifications               | Configurable off, in-app, macOS, or both; sound is user controlled.                                                                      |
-| Effect preparation          | Upgrade to a pinned Effect v4 release candidate before feature work uses v4 patterns.                                                    |
-| Local library sources       | Add pinned upstream Git subtrees at `vendor/effect` and `vendor/opentui` before development resumes.                                     |
-| Bulb typography             | Use custom 3×5 bulbs on the daily board; use 5×7 only for a masthead or selected-game title; keep all detail bodies as ordinary text.    |
-| Base occupancy              | Display a compact first/second/third-base diamond without home plate; leave its normalized data model open until MLB live-feed research. |
-| Schedule views              | Keep the daily bulb board and command center separate; `b` opens the board and `c` opens the command center.                             |
-| Command-center update       | While a selected date has an in-progress game, refresh and recompute its excitement ranking every 15 seconds.                            |
-| Command-center rows         | Rank every live game; show baseball data and a base diamond, with responsive records but no inline rank arithmetic.                      |
-| Command-center interaction  | Up/Down or `j`/`k` select; Enter opens details; `?` opens model help; no live game shows an empty state.                                 |
-| Command-center data gaps    | Omit unavailable situation fields, log diagnostics internally, and never portray unknown bases as empty.                                 |
-| Command architecture        | Assess the current listener and use context-aware, testable command dispatch before adding new controls.                                 |
+This table preserves the earlier product exploration. Rows marked deferred or
+updated are superseded by [Foundation decisions](foundation-decisions.md).
 
-## Open decisions for the next grilling round
+| Topic                       | Decision                                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| First usable release        | Daily board plus game details. Defer live ranking and stream launch.                                                                    |
+| Historical mode             | Browse past schedules and final scores.                                                                                                 |
+| Ranking approach            | Deferred until after the first public release.                                                                                          |
+| Stream destination          | Deferred until after the first public release.                                                                                          |
+| Board grouping              | Fixed American League and National League sections.                                                                                     |
+| Detail contract             | Standard box score: status, linescore, compact batting, and compact pitching tables. Defer GameDay-style situation and play-by-play.    |
+| Display baseline            | Unicode and truecolor when available, with a plain-text fallback.                                                                       |
+| In-section order            | Live games first; then scheduled start time.                                                                                            |
+| Initial ranking model       | Deferred until command-center work has a post-v0 product mandate.                                                                       |
+| Video key                   | Deferred with MLB.TV launching.                                                                                                         |
+| Live failure behavior       | Preserve existing data after a failed refresh, display its last successful-update timestamp, and follow the active-game polling policy. |
+| Confirmed date scope        | Open on the user's local date while retaining previous, next, today, and explicit date navigation.                                      |
+| Confirmed MLB coverage      | Include every official MLB game returned for the selected date, including Spring Training and postseason.                               |
+| Confirmed box score         | Standard inning linescore plus compact batting and pitching tables; defer GameDay-style situation and play-by-play features.            |
+| Confirmed pregame           | Show lineup or roster data when available; otherwise show teams, time, probable pitchers, and “lineups not announced.”                  |
+| Confirmed detail navigation | Escape returns to the schedule; changing games remains a schedule-screen action.                                                        |
+| Confirmed refresh display   | Refresh warmup, in-progress, delayed, and review states every 15 seconds; preserve the last successful-update timestamp on failure.     |
+| Initial-load failure        | Show a concise error and retry automatically when no successful data is available yet.                                                  |
+| Data architecture           | Normalized MLB adapter boundary; derived test fixtures, not a selectable runtime provider.                                              |
+| Notifications               | Deferred until after the first public release.                                                                                          |
+| Effect preparation          | Validate current matching Effect v4 pins against the retained local source before foundation work.                                      |
+| Local library sources       | Retain the current Effect/OpenTUI subtrees and move them from `repos/` to documented `vendor/` paths in the foundation milestone.       |
+| Bulb typography             | Use custom 3×5 bulbs on the daily board; use 5×7 only for a masthead or selected-game title; keep all detail bodies as ordinary text.   |
+| Base occupancy              | Deferred until after the first public release.                                                                                          |
+| Schedule views              | The daily bulb board is the only v0 schedule view; command center is deferred.                                                          |
+| Command-center update       | Deferred until command-center work begins after v0.                                                                                     |
+| Command-center rows         | Deferred until command-center work begins after v0.                                                                                     |
+| Command-center interaction  | Deferred until command-center work begins after v0.                                                                                     |
+| Command-center data gaps    | Deferred until command-center work begins after v0.                                                                                     |
+| Command architecture        | Assess the current listener and use context-aware, testable command dispatch before adding new controls.                                |
 
-1. What exact 3×5 glyph map, bulb colors, dark-bulb appearance, and plain-text fallback make the board readable before visual implementation starts?
-2. What official MLB.TV URL or supported identifier mapping should `v` open for each scheduled or live game?
-3. Which game-state changes can alert the user, what threshold starts an alert, and how long is the cooldown?
-4. Where do user settings persist, and does macOS notification permission belong to application setup or first use?
-5. What exact normalized error types and provider-selection configuration does the application need?
-6. What normalized current-situation model should provider adapters expose after MLB live-feed research, including runner identity, base occupancy, count, and play context?
+## Deferred decisions
+
+The following are deliberately deferred and must not block the foundation or
+first public release: exact bulb glyph/color choices beyond the visual fallback
+contract, MLB.TV URL mapping, notifications and their settings, persistent user
+settings, live-situation modeling, and any provider-selection configuration.
+The MLB adapter's typed error taxonomy is an implementation design task within
+the normalized boundary, not a reason to reopen the product decisions above.

@@ -1,7 +1,9 @@
 # CLI architecture technical review
 
 - Reviewed: 2026-08-23
-- Status: decision record and future implementation context
+- Status: technical implementation context. [Foundation decisions](foundation-decisions.md)
+  is the current planning authority; this review supplies the OpenTUI/React/
+  Effect guidance for implementing it.
 - Scope: Ballgame's OpenTUI React shell, dialogs, commands, Effect Atom, runtime ownership, and current OpenTUI tooling.
 
 ## Decision summary
@@ -58,11 +60,12 @@ explicit state model, not a replacement dependency hunt.
 unused. This makes a full fixture-versus-live provider selection, injected tests, and lifecycle ownership harder than
 they need to be.
 
-### Data state is not yet the provider-neutral model in the product vision
+### Data state is not yet the normalized MLB boundary
 
 The UI still accepts numeric MLB `gamePk` values; `GameApi.feed` returns an MLB-shaped `GameFeedLive` with `liveData`
 typed as `Unknown`; service failures expose HTTP and schema errors directly. That is a useful spike, but not the
-provider-neutral `GameRef`, normalized domain model, and typed domain-error boundary described in the product vision.
+application-owned game reference, normalized domain model, and typed
+application-error boundary described in the product vision.
 
 ### Refresh and shutdown need one visible owner
 
@@ -171,23 +174,22 @@ renderables, or a generic modal framework merely because they exist.
    changing product behavior.
 4. Implement `OverlayHost` and migrate only Go To Date and Help. This is the proof slice for overlay priority,
    generated discoverability, and validation failures.
-5. Move schedule and detail bindings into their respective mounted components. Add the `b` and `c` top-level schedule
-   routes only after the command scopes are established.
-6. Consolidate Atom runtime and provider selection; normalize the data contracts before building the box score or
-   command-center ranking.
+5. Move schedule and detail bindings into their respective mounted components.
+   Add only the daily board route in v0; command-center work is deferred.
+6. Consolidate Atom runtime and MLB adapter selection; normalize the data
+   contracts before building the box score.
 7. Replace duplicate polling with one Effect-owned refresh model that retains last successful data and timestamps.
 8. Replace direct process exit with renderer-owned shutdown and scoped cleanup.
 9. Add three test layers: pure Atom action tests, Keymap precedence tests using `@opentui/keymap/testing`, and
    OpenTUI React rendered interaction tests.
 
-## Questions for the next design review
+## Deferred implementation choices
 
-- Which commands must remain globally available while an overlay is open, beyond quit?
-- Should Help show only reachable commands, or also contextually unavailable commands with explanations?
-- Is a one-item overlay model sufficient until a destructive action exists, or should the stack land immediately?
-- What exact provider-neutral `GameRef`, error types, and retained-data snapshot should the UI depend on?
-- Does the command-center need an independent selection state from the bulb board, or should the selected game follow
-  the shared date across both routes?
+The command-center selection model is deferred with that feature. The remaining
+overlay reachability, help presentation, overlay-stack, application-reference,
+error-taxonomy, and retained-snapshot details are implementation choices for
+the scoped foundation milestone; they must not reopen the settled product or
+release decisions.
 
 ## References
 

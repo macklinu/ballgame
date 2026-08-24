@@ -1,14 +1,16 @@
 # MLB Stats API ingestion research
 
 - Researched: 2026-08-23
-- Status: exploratory evidence and proposed ingestion plan; not a provider contract
+- Status: exploratory evidence and proposed ingestion plan; not a provider contract.
+  [Foundation decisions](foundation-decisions.md) is the current product and
+  architecture authority.
 - Scope: schedule, game overview, and live-game-state ingestion. Play-by-play is
   deliberately a later concern.
 
 ## Executive decision
 
-Build the MLB integration as a tolerant, provider-private adapter that maps
-raw schedule and GUMBO/live-feed payloads into provider-neutral domain models.
+Build the MLB integration as a tolerant, provider-private adapter that maps raw
+schedule and GUMBO/live-feed payloads into normalized Ballgame domain models.
 Do **not** model MLB game status as the current `Preview | Live | Final` union.
 
 The public status catalogue currently exposes 210 entries. It contains
@@ -221,7 +223,7 @@ game reference alone is insufficient for historical schedule rendering.
 MLB HTTP payload
   -> tolerant private raw DTO decoder
   -> per-game mapper plus diagnostics
-  -> provider-neutral ScheduleEntry / GameOverview / LiveSituation
+  -> normalized ScheduleEntry / GameOverview / LiveSituation
   -> ScheduleService and GameService
   -> UI
 ```
@@ -261,18 +263,19 @@ decision, not a JSON-parser accident.
 
 ## Issue-sized implementation sequence
 
-1. **Define the provider-neutral baseball domain and typed service contracts.**
-   Include `GameRef`, schedule-occurrence identity, status model, and unknown
-   situation semantics. This is already a product-vision pre-development gate.
+1. **Define normalized MLB-facing domain records and typed service contracts.**
+   Include an application-owned game reference, schedule-occurrence identity,
+   status model, and unknown-state semantics.
 2. **Add tolerant raw MLB schedule DTOs and independent per-game mapping.**
    Decode optional/null linescores, optional series metadata, status reasons,
    doubleheader values, and reschedule/resume fields.
 3. **Build a status-catalog fixture and table-driven mapper tests.**
    Snapshot `/gameStatus`, classify all entries, and add unknown/contradictory
    synthetic cases.
-4. **Implement the live schedule adapter and fixture adapter behind the same
-   service.** Preserve last successful data and use the existing 15-second
-   policy only when a normalized state is active/live.
+4. **Implement the live schedule adapter behind the normalized service.** Use
+   derived test fixtures rather than a runtime fixture provider. Preserve the
+   last successful data and use the existing 15-second policy only when a
+   normalized state is active/live.
 5. **Implement full-feed game overview ingestion.** Validate ID equality and
    meaningful metadata; map linescore and standard box score without exposing
    raw GUMBO types.
@@ -301,39 +304,32 @@ considered reliable:
 | unknown future status and fields                     | Safe `Unknown` mapping and diagnostic, not failure.         |
 | failed refresh after a good response                 | Retain old domain snapshot and its timestamp.               |
 
-Use real captured fixtures for observed provider shapes. Hand-written minimal
-fixtures are appropriate only for rare states that cannot be captured in a
-reasonable period; label them as synthetic.
+Use derived minimal fixtures for observed provider shapes and label every
+synthetic case. Raw captures may assist local adapter research, but must remain
+untracked and unpublished under the public-data policy.
 
-## Questions for a future grilling session
+## Resolved planning decisions
 
-These are product and architecture decisions that need an explicit answer
-before implementation details harden around them:
+The product questions that previously appeared here are now settled in
+[Foundation decisions](foundation-decisions.md):
 
-1. For an original postponed schedule date, does opening that row show only
-   the postponement facts, or may it link separately to the completed makeup
-   game?
-2. What is the intended UX for a malformed single schedule game: omit it,
-   render an unavailable row, or surface a non-blocking diagnostics indicator?
-3. Which status transitions count as “live” for polling: warmup, delayed
-   start, review, and suspended games all have different cost/value tradeoffs.
-4. Is `officialDate` an observation to display, or should the selected local
-   schedule date remain the sole source of truth for board placement?
-5. Should a final tie and a forfeit have a standard box-score detail route, or
-   an explanatory terminal-state detail view?
-6. What degree of historical reproduction is expected after reschedules,
-   resumes, and doubleheaders: original calendar record, completed-game record,
-   or both?
-7. Does first release need probable pitchers and lineups on the schedule, or
-   only in game details? The answer determines schedule hydration and payload
-   budget.
-8. When provider data disagrees across schedule, linescore, and full feed,
-   which endpoint has precedence for display and which facts should be retained
-   as diagnostics?
-9. When will the complexity of timecode/diffPatch be justified: historical
-   replay, sub-15-second UI updates, or neither?
-10. What rate-limit/retry/backoff policy is acceptable for a full-feed detail
-    poll, especially during multiple simultaneous live games?
+- Keep the selected local-date occurrence truthful and optionally link a known
+  makeup game as related context.
+- Render a malformed game as a non-blocking unavailable row.
+- Poll warmup, in-progress, delayed, and review states every 15 seconds; do
+  not poll scheduled, terminal, postponed, cancelled, or suspended games.
+- Use the user's selected local date for board placement.
+- Use one adaptive detail shell: render a box score when the result is
+  score-bearing and data is usable; otherwise render truthful status and
+  scheduling context.
+- Keep probable pitchers and lineup availability in game details, not board
+  rows.
+- Defer timecode and diff-patch ingestion, live situation, and play-by-play.
+
+Endpoint precedence, bounded retry/backoff mechanics, and diagnostic detail are
+adapter implementation choices. They must preserve truthful historical
+occurrences, retain the last successful response on failure, and meet the
+published active-game freshness policy.
 
 ## Non-goals for the first ingestion milestone
 

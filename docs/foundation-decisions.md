@@ -182,11 +182,9 @@ states.
   loading the application. Bun runs the same ESM distribution. Target-specific
   executables are a fallback only if clean package checks show that this path is
   not viable.
-- Nub is the required contributor command convention. Use the latest official
-  skill at project scope and use `nub`, `nub run`, `nubx`, and `nub install` for
-  development, scripts, local CLIs, and installs. The foundation work must
-  explicitly handle Nub's default denial of dependency lifecycle scripts before
-  retaining or replacing the current `prepare` hook.
+- Nub is the required contributor command convention. The tool-managed,
+  project-scoped Nub skill is the sole operational authority for its commands
+  and dependency lifecycle-script policy.
 - Keep reproducible local source access by retaining the Effect and OpenTUI
   Git subtrees. Move the current `repos/effect` and `repos/opentui` subtrees to
   `vendor/effect` and `vendor/opentui` in a dedicated foundation change; do

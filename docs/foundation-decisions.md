@@ -186,10 +186,9 @@ states.
   project-scoped Nub skill is the sole operational authority for its commands
   and dependency lifecycle-script policy.
 - Keep reproducible local source access by retaining the Effect and OpenTUI
-  Git subtrees. Move the current `repos/effect` and `repos/opentui` subtrees to
-  `vendor/effect` and `vendor/opentui` in a dedicated foundation change; do
-  not remove them. Record each upstream URL, source commit, package version,
-  and subtree update procedure.
+  Git subtrees at `vendor/effect` and `vendor/opentui`; do not remove them.
+  Record each upstream URL, source commit, package version, and subtree update
+  procedure.
 
 ### Releases and quality gates
 

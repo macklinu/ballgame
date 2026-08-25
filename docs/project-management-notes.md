@@ -53,6 +53,17 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   preserves a compatibility lockfile. This decision was made by the project
   coordinator without a separate user directive, based on the #4 correction.
 
+### 2026-08-25 — Baseline CI runtime contract
+
+- The pre-release CI slice of #16 was implemented as issue #26: one validation
+  job runs on pull requests and pushes to `main`, uses the project-pinned Nub,
+  then installs, formats, lints, typechecks, and tests.
+- No separate Node version was invented because the repository has no existing
+  Node runtime source of truth. The workflow pins Nub and follows its official
+  setup action; adding Node version policy remains a deliberate future change.
+  This decision was made by the implementation agent without a separate user
+  directive and is recorded in PR #27.
+
 ## Reusable Blockers and Watch Items
 
 - The current source trees are under `repos/`; issue #2 must complete before

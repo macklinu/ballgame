@@ -37,6 +37,9 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   `gh stack link` after opening its PR.
 - Use native stacks only for linear dependencies; multi-parent join points
   wait for their parent PRs to merge rather than duplicating parent commits.
+- When several tickets independently depend on the same parent, each uses an
+  atomic PR targeting that parent branch. They are not appended to one another
+  merely to force a linear stack that would create a false dependency.
 
 ## Reusable Blockers and Watch Items
 

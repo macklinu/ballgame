@@ -23,5 +23,6 @@ is planned for `npx @macklinu/ballgame` and `bunx @macklinu/ballgame`.
 The exact upstream sources for the runtime dependencies are available for
 inspection in [`vendor/effect`](vendor/effect) and
 [`vendor/opentui`](vendor/opentui). Treat them as vendored source trees, not as
-independently managed Ballgame repositories; application work belongs in
-[`src`](src).
+independently managed Ballgame repositories. Their provenance and deterministic
+refresh procedure are in [the vendor update guide](docs/vendor-updates.md);
+application work belongs in [`src`](src).

@@ -32,8 +32,9 @@ issues remain the authoritative source for ticket scope and dependency blocking.
 
 - Installed GitHub's official `gh-stack` extension (public preview) and its
   agent guidance after reviewing GitHub's stacked-PR quickstart.
-- #4 is the stable bottom PR for a stack. #5 has started from #4's feature
-  branch and must be linked to it with `gh stack link` after opening its PR.
+- #4 is the planned bottom PR for a stack. #5 has started from #4's feature
+  branch, must rebase onto its current parent revision, and must be linked with
+  `gh stack link` after opening its PR.
 - Use native stacks only for linear dependencies; multi-parent join points
   wait for their parent PRs to merge rather than duplicating parent commits.
 

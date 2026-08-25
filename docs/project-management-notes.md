@@ -108,9 +108,10 @@ issues remain the authoritative source for ticket scope and dependency blocking.
 - The user explicitly authorized enabling merge commits. #22 was then merged
   through GitHub's asynchronous stacked-PR API with `merge_method: merge`,
   preserving its native subtree commits on `main`.
-- Prefer GitHub rebase merges for ordinary linear PRs. Use a merge commit only
-  when a PR intentionally requires two-parent history, such as a native Git
-  subtree import; call out that exception during review before merging.
+- The user's merge-method preference, in order, is **squash**, then
+  **rebase**, then a **merge commit**. Use a merge commit only when a PR
+  intentionally requires two-parent history, such as a native Git subtree
+  import; call out that exception during review before merging.
 
 ## Reusable Blockers and Watch Items
 

@@ -102,5 +102,9 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   added. At the user's direction, #22 was rebuilt with real vendor subtree
   imports. #24 now documents the supported native refresh procedure; the
   temporary archive-based workaround must not merge.
+- Vendor provenance has two distinct immutable layers: Ballgame-local subtree
+  anchors and the upstream source snapshots named by those anchors' own
+  `git-subtree-split` trailers. Documentation must not link a local anchor to
+  the upstream repository; #24 records both layers explicitly.
 - #28 has completed its local validation, but its GitHub Actions validation is
   pending #27's merge because the workflow did not exist when #28 opened.

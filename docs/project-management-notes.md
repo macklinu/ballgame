@@ -41,12 +41,31 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   atomic PR targeting that parent branch. They are not appended to one another
   merely to force a linear stack that would create a false dependency.
 
+### 2026-08-25 — Tooling-migration handoff rule
+
+- After the #4 Nub PR required review corrections, foundation/tooling tickets
+  now require a short implementation checklist before an agent opens a PR. It
+  must name the authoritative installation method, source-of-truth documents,
+  package-manager metadata, lockfile ownership, lifecycle/build policy, and
+  reproducible validation command.
+- “Adopt” a package manager is interpreted as migrating the project ownership
+  contract, including its generated lockfile, unless the issue explicitly
+  preserves a compatibility lockfile. This decision was made by the project
+  coordinator without a separate user directive, based on the #4 correction.
+
 ## Reusable Blockers and Watch Items
 
 - The current source trees are under `repos/`; issue #2 must complete before
   documentation work in #3 can name the final `vendor/` paths.
 - Issue #4 resolved the missing Nub guidance by adding the current official
   Nub project skill, pinned to its upstream source revision, in its PR.
+- #4 exposed an execution/review failure rather than a hard technical blocker:
+  the first implementation copied a skill instead of using its official
+  installer, duplicated operational guidance, and retained `bun.lock` after
+  pinning Nub. The review cycle corrected those items, ending with a generated
+  `nub.lock`. Future tool migrations must verify the full ownership contract
+  before review rather than treating a legacy lockfile as compatible by
+  default.
 - A plain `repos/` → `vendor/` move does not retain recognized subtree prefixes:
   `git subtree pull` and `git subtree merge` reject the new paths as never
   added. At the user's direction, #22 is being rebuilt with real vendor

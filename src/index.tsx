@@ -1,64 +1,42 @@
-import { useAtom, useAtomRefresh, useAtomSet, useAtomValue } from '@effect/atom-react'
+import { useAtom, useAtomSet, useAtomValue } from '@effect/atom-react'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
-import * as BunServices from '@effect/platform-bun/BunServices'
 import { createCliRenderer, TextAttributes } from '@opentui/core'
 import { createRoot, useKeyboard } from '@opentui/react'
 import * as Cause from 'effect/Cause'
 import * as Console from 'effect/Console'
 import * as DateTime from 'effect/DateTime'
-import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Number from 'effect/Number'
-import * as Option from 'effect/Option'
 import * as Schedule from 'effect/Schedule'
 import * as Stream from 'effect/Stream'
 import * as FetchHttpClient from 'effect/unstable/http/FetchHttpClient'
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult'
 import * as Atom from 'effect/unstable/reactivity/Atom'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { dateAtom, goToDateAtom, isSameDay, nextDay, now, previousDay } from './date'
-import * as Game from './Game'
+import { dateAtom, goToDateAtom, nextDay, now, previousDay } from './date'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
-import { ScheduleDate, ScheduleService } from './Schedule'
+import * as Mlb from './mlb-adapter'
+import * as ScheduleContract from './Schedule'
 import { useCurrentView, View } from './View'
 
-const scheduleRuntime = Atom.runtime(
-  ScheduleService.layerFromFileSystem.pipe(Layer.provide(BunServices.layer)),
-)
+const scheduleRuntime = Atom.runtime(Mlb.layerLive.pipe(Layer.provide(FetchHttpClient.layer)))
 
 const getScheduleForDate = Effect.fn('Schedule.getScheduleForDate')(function* (
   date: DateTime.DateTime,
 ) {
-  const scheduleService = yield* ScheduleService
-  return yield* scheduleService.getSchedule(date)
+  const scheduleService = yield* ScheduleContract.ScheduleService
+  return yield* scheduleService.get(date)
 })
 
 const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
   scheduleRuntime.atom(
     Stream.fromEffectSchedule(getScheduleForDate(date), Schedule.spaced('15 seconds')).pipe(
-      Stream.takeUntil(
-        (schedule) =>
-          schedule.totalGames === 0 ||
-          schedule.games.every((game) => game.status.abstractGameCode === 'F'),
-      ),
+      Stream.takeUntil((schedule) => !ScheduleContract.hasNonTerminalGame(schedule)),
     ),
-  ),
-)
-
-const gameApiRuntime = Atom.runtime(
-  Game.GameApi.layerLive.pipe(Layer.provide(FetchHttpClient.layer)),
-)
-
-const gameFeedAtom = Atom.family((gamePk: number) =>
-  gameApiRuntime.atom(
-    Effect.gen(function* () {
-      const api = yield* Game.GameApi
-      return yield* api.feed(gamePk)
-    }),
   ),
 )
 
@@ -70,7 +48,7 @@ const previousGameAtom = Atom.fnSync<DateTime.DateTime>()((date, get) => {
   const index = get(selectedGameIndexAtom)
   const newIndex = Number.clamp({
     minimum: 0,
-    maximum: schedule.totalGames - 1,
+    maximum: Math.max(schedule.occurrences.length - 1, 0),
   })(index - 1)
 
   get.set(selectedGameIndexAtom, newIndex)
@@ -82,7 +60,7 @@ const nextGameAtom = Atom.fnSync<DateTime.DateTime>()((date, get) => {
   const index = get(selectedGameIndexAtom)
   const newIndex = Number.clamp({
     minimum: 0,
-    maximum: schedule.totalGames - 1,
+    maximum: Math.max(schedule.occurrences.length - 1, 0),
   })(index + 1)
 
   get.set(selectedGameIndexAtom, newIndex)
@@ -116,7 +94,7 @@ const whenSuccess = <A, E>(result: AsyncResult.AsyncResult<A, E>, onSuccess: (a:
   }
 }
 
-const NoGamesScheduled = () => <text attributes={TextAttributes.DIM}>No games scheduled</text>
+const NoGamesScheduled = () => <text attributes={TextAttributes.DIM}>No games today.</text>
 
 const KeyboardShortcut = ({ shortcut, description }: { shortcut: string; description: string }) => (
   <box flexDirection='row' flexWrap='wrap' gap={1} alignItems='center'>
@@ -127,14 +105,12 @@ const KeyboardShortcut = ({ shortcut, description }: { shortcut: string; descrip
   </box>
 )
 
-const DailyGameView = ({ schedule }: { schedule: ScheduleDate }) => {
-  const date = useAtomValue(dateAtom)
+const DailyGameView = ({ schedule }: { schedule: ScheduleContract.Schedule }) => {
   const selectedGameIndex = useAtomValue(selectedGameIndexAtom)
-  const day = schedule.games.some((d) => isSameDay(d.gameDate, date))
 
   const { pushView } = useCurrentView()
 
-  if (!day) {
+  if (schedule.occurrences.length === 0) {
     return (
       <CenteredContainer>
         <NoGamesScheduled />
@@ -153,31 +129,52 @@ const DailyGameView = ({ schedule }: { schedule: ScheduleDate }) => {
       flexWrap='wrap'
       justifyContent='center'
     >
-      {schedule.games.map((game, index) => (
-        <GameGridItem
-          onMouseUp={(e) => {
-            pushView(View.GameDetails({ gamePk: game.gamePk }))
-            e.stopPropagation()
-          }}
-          flexBasis={24}
-          key={game.gamePk}
-          isSelected={index === selectedGameIndex}
-          game={game}
-        />
-      ))}
+      {schedule.occurrences.map((occurrence, index) =>
+        occurrence._tag === 'Available' ? (
+          <GameGridItem
+            onMouseUp={(e) => {
+              pushView(View.GameDetails({ occurrence }))
+              e.stopPropagation()
+            }}
+            flexBasis={24}
+            key={`${occurrence.selectedDate}-${occurrence.game.ref}`}
+            isSelected={index === selectedGameIndex}
+            game={occurrence.game}
+          />
+        ) : (
+          <box
+            flexBasis={24}
+            key={`${occurrence.selectedDate}-${index}`}
+            padding={1}
+            borderStyle='single'
+          >
+            <text>{occurrence.message}</text>
+          </box>
+        ),
+      )}
     </box>
   )
 }
 
-const GameDetailsView = ({ gamePk }: { gamePk: number }) => {
-  const game = useAtomValue(gameFeedAtom(gamePk))
+const GameDetailsView = ({
+  occurrence,
+}: {
+  occurrence: ScheduleContract.AvailableScheduleOccurrence
+}) => {
+  const { game } = occurrence
   return (
     <box flexDirection='column' padding={2} borderStyle='single'>
-      <text>Game Details for {gamePk}</text>
-      {AsyncResult.builder(game)
-        .onSuccess(({ gamePk }) => <text>Game details for {gamePk}!</text>)
-        .onError((error) => <text>Error loading game: {String(error)}</text>)
-        .orNull()}
+      <text>
+        {game.awayTeam.name} at {game.homeTeam.name}
+      </text>
+      <text>{game.status.label}</text>
+      {game.status.reason === undefined ? null : <text>{game.status.reason}</text>}
+      {occurrence.rescheduledTo === undefined ? null : (
+        <text>Rescheduled to {occurrence.rescheduledTo}</text>
+      )}
+      {occurrence.rescheduledFrom === undefined ? null : (
+        <text>Rescheduled from {occurrence.rescheduledFrom}</text>
+      )}
     </box>
   )
 }
@@ -190,7 +187,6 @@ const App = () => {
   const [goToDateValue, setGoToDateValue] = useState(DateTime.formatIsoDate(date))
   const goToDate = useAtomSet(goToDateAtom, { mode: 'promise' })
   const schedule = useAtomValue(scheduleAtom(date))
-  const refreshSchedule = useAtomRefresh(scheduleAtom(date))
   const [selectedGameIndex, setSelectedGameIndex] = useAtom(selectedGameIndexAtom)
 
   const goToPreviousGame = useAtomSet(previousGameAtom)
@@ -199,31 +195,6 @@ const App = () => {
   useEffect(() => {
     setSelectedGameIndex(0)
   }, [schedule, setSelectedGameIndex])
-
-  const refreshDuration = useMemo(
-    () =>
-      Option.fromNullishOr(
-        AsyncResult.builder(schedule)
-          .onSuccess(({ totalGames, games }) =>
-            totalGames === 0
-              ? null
-              : games.some((game) => game.status.abstractGameCode === 'L')
-                ? Duration.seconds(15)
-                : null,
-          )
-          .orNull(),
-      ),
-    [schedule],
-  )
-
-  useEffect(() => {
-    if (Option.isNone(refreshDuration)) {
-      return
-    }
-    const delay = refreshDuration.value.pipe(Duration.toMillis)
-    const interval = setInterval(() => refreshSchedule(), delay)
-    return () => clearInterval(interval)
-  }, [refreshSchedule, refreshDuration])
 
   useKeyboard((key) => {
     if (isGoToDateOpen) {
@@ -249,11 +220,10 @@ const App = () => {
 
     if (key.name === 'return') {
       whenSuccess(schedule, (schedule) => {
-        pushView(
-          View.GameDetails({
-            gamePk: schedule.games[selectedGameIndex]!.gamePk,
-          }),
-        )
+        const occurrence = schedule.occurrences[selectedGameIndex]
+        if (occurrence !== undefined && occurrence._tag === 'Available') {
+          pushView(View.GameDetails({ occurrence }))
+        }
       })
     }
 
@@ -336,7 +306,7 @@ const App = () => {
               </box>
             </>
           ),
-          GameDetails: ({ gamePk }) => <GameDetailsView gamePk={gamePk} />,
+          GameDetails: ({ occurrence }) => <GameDetailsView occurrence={occurrence} />,
         })}
         {isGoToDateOpen ? (
           <box

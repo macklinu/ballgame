@@ -1,155 +1,75 @@
-import { Effect } from 'effect'
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
-import * as Layer from 'effect/Layer'
-import * as Match from 'effect/Match'
+import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
-import * as HttpClient from 'effect/unstable/http/HttpClient'
-import * as HttpClientError from 'effect/unstable/http/HttpClientError'
-import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
-import * as Model from 'effect/unstable/schema/Model'
 
 import * as Status from './Status'
 import * as Team from './Team'
 
-const InningState = Schema.Literals(['Top', 'Bottom', 'Middle', 'End'])
-type InningState = typeof InningState.Type
+/**
+ * A Ballgame-owned game reference. Its value is opaque to application code and
+ * is never a provider identifier.
+ */
+export const GameRef = Schema.String.pipe(Schema.brand('GameRef'))
+export type GameRef = typeof GameRef.Type
 
-const abbreviatedInningState = (inningState: InningState) => {
-  switch (inningState) {
-    case 'Bottom':
-      return 'Bot'
-    case 'Middle':
-      return 'Mid'
-    default:
-      return inningState
-  }
+export const GameType = Schema.Literals([
+  'SpringTraining',
+  'Exhibition',
+  'RegularSeason',
+  'AllStar',
+  'Postseason',
+  'Other',
+])
+export type GameType = typeof GameType.Type
+
+export interface Score {
+  readonly away: number
+  readonly home: number
 }
 
-class Linescore extends Schema.Class<Linescore>('Linescore')({
-  scheduledInnings: Schema.Number,
-}) {
-  static readonly Live = class Live extends Linescore.extend<Live>('Live')({
-    inningState: InningState,
-    inningHalf: Schema.Literals(['Top', 'Bottom']),
-    currentInning: Schema.Number,
-    currentInningOrdinal: Schema.String,
-    outs: Schema.Number,
-    balls: Schema.Number,
-    strikes: Schema.Number,
-    isTopInning: Schema.Boolean,
-  }) {}
+export const Score = Schema.Struct({
+  away: Schema.Int,
+  home: Schema.Int,
+})
+
+export interface Game {
+  readonly ref: GameRef
+  readonly type: GameType
+  readonly startsAt: DateTime.Utc
+  readonly awayTeam: Team.Team
+  readonly homeTeam: Team.Team
+  readonly status: Status.GameStatus
+  readonly score?: Score
 }
 
-export class Game extends Schema.Class<Game>('Game')({
-  gamePk: Schema.Number,
-  gameGuid: Schema.String.check(Schema.isUUID()),
-  gameType: Schema.String,
-  season: Schema.String,
-  gameDate: Schema.DateTimeUtcFromString,
-  officialDate: Schema.DateTimeUtcFromString,
-  teams: Schema.Struct({
-    away: Schema.Struct({
-      leagueRecord: Schema.Struct({
-        wins: Schema.Number,
-        losses: Schema.Number,
-        pct: Schema.String,
-      }),
-      score: Model.optionalOption(Schema.Number),
-      team: Team.Team,
-      splitSquad: Schema.Boolean,
-      seriesNumber: Schema.Number,
-    }),
-    home: Schema.Struct({
-      leagueRecord: Schema.Struct({
-        wins: Schema.Number,
-        losses: Schema.Number,
-        pct: Schema.String,
-      }),
-      score: Model.optionalOption(Schema.Number),
-      team: Team.Team,
-      splitSquad: Schema.Boolean,
-      seriesNumber: Schema.Number,
-    }),
-  }),
-}) {
-  get awayTeam() {
-    return this.teams.away.team
-  }
+export const Game = Schema.Struct({
+  ref: GameRef,
+  type: GameType,
+  startsAt: Schema.DateTimeUtc,
+  awayTeam: Team.Team,
+  homeTeam: Team.Team,
+  status: Status.GameStatus,
+  score: Schema.optionalKey(Score),
+})
 
-  get homeTeam() {
-    return this.teams.home.team
-  }
+export const hasScore = (game: Game): game is Game & { readonly score: Score } =>
+  game.score !== undefined
+
+export class GameNotFound extends Schema.TaggedError<GameNotFound>()('GameNotFound', {
+  gameRef: GameRef,
+}) {}
+
+export class GameUnavailable extends Schema.TaggedError<GameUnavailable>()('GameUnavailable', {
+  operation: Schema.String,
+  cause: Schema.Defect(),
+}) {}
+
+export interface GameServiceApi {
+  readonly get: (gameRef: GameRef) => Effect.Effect<Game, GameNotFound | GameUnavailable>
 }
 
-export class PreviewGame extends Game.extend<PreviewGame>('PreviewGame')({
-  status: Status.PreviewStatus,
-  linescore: Linescore,
-}) {}
-
-export class LiveGame extends Game.extend<LiveGame>('LiveGame')({
-  status: Status.LiveStatus,
-  linescore: Linescore.Live,
-}) {}
-
-export class FinalGame extends Game.extend<FinalGame>('FinalGame')({
-  status: Status.FinalStatus,
-  linescore: Linescore.Live,
-}) {}
-
-export const GameSchema = Schema.Union([PreviewGame, LiveGame, FinalGame])
-
-export const currentTime = Match.type<Game>().pipe(
-  Match.when(Match.instanceOf(PreviewGame), (game) =>
-    DateTime.formatLocal(game.gameDate, { timeStyle: 'short' }),
-  ),
-  Match.when(Match.instanceOf(LiveGame), ({ linescore, status }) =>
-    status.statusCode === 'PW'
-      ? status.detailedState
-      : `${abbreviatedInningState(linescore.inningState)} ${linescore.currentInning}`,
-  ),
-  Match.when(Match.instanceOf(FinalGame), ({ linescore }) => {
-    if (linescore.currentInning !== 9) {
-      return `F/${linescore.currentInning}`
-    }
-    return 'F'
-  }),
-  Match.orElseAbsurd,
-)
-
-const teamScore = (teamType: 'home' | 'away') => (game: LiveGame | FinalGame) =>
-  game.teams[teamType].score
-
-export const homeTeamScore = teamScore('home')
-export const awayTeamScore = teamScore('away')
-
-export const hasStarted = (game: Game) => game instanceof LiveGame || game instanceof FinalGame
-
-export class GameFeedLive extends Schema.Class<GameFeedLive>('GameFeedLive')({
-  gamePk: Schema.Number,
-  liveData: Schema.Unknown,
-}) {}
-
-export class GameApi extends Context.Service<
-  GameApi,
-  {
-    readonly feed: (
-      gamePk: number,
-    ) => Effect.Effect<GameFeedLive, Schema.SchemaError | HttpClientError.HttpClientError>
-  }
->()('@macklinu/ballgame/Game/GameApi') {
-  static readonly layerLive = Layer.effect(
-    GameApi,
-    Effect.gen(function* () {
-      const httpClient = yield* HttpClient.HttpClient
-
-      return GameApi.of({
-        feed: Effect.fn('GameApi.feed')((gamePk) =>
-          httpClient
-            .get(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
-            .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(GameFeedLive))),
-        ),
-      })
-    }),
-  )
-}
+/** Public application service: normalized games and typed application errors only. */
+export class GameService extends Context.Service<GameService, GameServiceApi>()(
+  '@macklinu/ballgame/GameService',
+) {}

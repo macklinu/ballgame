@@ -1,5 +1,4 @@
 import type { BoxProps } from '@opentui/react'
-import * as Option from 'effect/Option'
 
 import * as Game from './Game'
 
@@ -23,15 +22,15 @@ export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
           <text>{game.awayTeam.abbreviation}</text>
           <text>{game.homeTeam.abbreviation}</text>
         </box>
-        {Game.hasStarted(game) && (
+        {Game.hasScore(game) && (
           <box flexDirection='column'>
-            <text>{Game.awayTeamScore(game).pipe(Option.getOrElse(() => 0))}</text>
-            <text>{Game.homeTeamScore(game).pipe(Option.getOrElse(() => 0))}</text>
+            <text>{game.score.away}</text>
+            <text>{game.score.home}</text>
           </box>
         )}
       </box>
       <box>
-        <text>{Game.currentTime(game)}</text>
+        <text>{game.status.label}</text>
       </box>
     </box>
   )

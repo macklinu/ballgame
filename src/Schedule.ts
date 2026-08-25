@@ -1,87 +1,65 @@
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
-import * as FileSystem from 'effect/FileSystem'
-import * as Layer from 'effect/Layer'
-import * as Path from 'effect/Path'
 import * as Schema from 'effect/Schema'
-import * as HttpClient from 'effect/unstable/http/HttpClient'
-import * as HttpClientError from 'effect/unstable/http/HttpClientError'
-import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
 
 import * as Game from './Game'
+import * as Status from './Status'
 
-export class ScheduleDate extends Schema.Class<ScheduleDate>('ScheduleDate')({
-  date: Schema.DateTimeUtcFromString,
-  totalGames: Schema.Number,
-  games: Schema.Array(Game.GameSchema),
-}) {
-  static readonly empty = (date: DateTime.DateTime): ScheduleDate =>
-    ScheduleDate.make({
-      date: DateTime.toUtc(date),
-      games: [],
-      totalGames: 0,
-    })
+/** A date on the official schedule, independent of the viewer's timezone. */
+export const ScheduleDate = Schema.String.pipe(Schema.brand('ScheduleDate'))
+export type ScheduleDate = typeof ScheduleDate.Type
+
+/**
+ * A date-specific occurrence. The selected schedule date and game reference
+ * must travel together so a later makeup cannot overwrite a postponed slate.
+ */
+export const ScheduleOccurrence = Schema.TaggedUnion({
+  Available: {
+    selectedDate: ScheduleDate,
+    game: Game.Game,
+    rescheduledTo: Schema.optionalKey(ScheduleDate),
+    rescheduledFrom: Schema.optionalKey(ScheduleDate),
+  },
+  Unavailable: {
+    selectedDate: ScheduleDate,
+    message: Schema.NonEmptyString,
+  },
+})
+export type ScheduleOccurrence = typeof ScheduleOccurrence.Type
+export type AvailableScheduleOccurrence = Extract<
+  ScheduleOccurrence,
+  { readonly _tag: 'Available' }
+>
+
+export interface Schedule {
+  readonly date: ScheduleDate
+  readonly occurrences: ReadonlyArray<ScheduleOccurrence>
 }
 
-export class ScheduleResponse extends Schema.Class<ScheduleResponse>('ScheduleResponse')({
-  totalGames: Schema.Number,
-  dates: Schema.Array(ScheduleDate),
-}) {}
+export const Schedule = Schema.Struct({
+  date: ScheduleDate,
+  occurrences: Schema.Array(ScheduleOccurrence),
+})
 
-export class ScheduleService extends Context.Service<
-  ScheduleService,
+export const hasNonTerminalGame = (schedule: Schedule): boolean =>
+  schedule.occurrences.some(
+    (occurrence) => occurrence._tag === 'Available' && !Status.isTerminal(occurrence.game.status),
+  )
+
+export class ScheduleUnavailable extends Schema.TaggedError<ScheduleUnavailable>()(
+  'ScheduleUnavailable',
   {
-    readonly getSchedule: (
-      date: DateTime.DateTime,
-    ) => Effect.Effect<ScheduleDate, Schema.SchemaError | HttpClientError.HttpClientError>
-  }
->()('@macklinu/ballgame/Schedule/ScheduleService') {
-  static readonly layerLive = Layer.effect(
-    ScheduleService,
-    Effect.gen(function* () {
-      const httpClient = yield* HttpClient.HttpClient
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
 
-      return ScheduleService.of({
-        getSchedule: Effect.fn('ScheduleService.getSchedule')((date) =>
-          httpClient
-            .get('https://statsapi.mlb.com/api/v1/schedule', {
-              urlParams: {
-                sportId: 1,
-                date: DateTime.formatIsoDate(date),
-                hydrate: ['team', 'game', 'linescore'].join(','),
-              },
-            })
-            .pipe(
-              Effect.flatMap(HttpClientResponse.schemaBodyJson(ScheduleResponse)),
-              Effect.map(({ dates }) => dates[0] ?? ScheduleDate.empty(date)),
-            ),
-        ),
-      })
-    }),
-  )
-
-  static readonly layerFromFileSystem = Layer.effect(
-    ScheduleService,
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem
-      const path = yield* Path.Path
-
-      return ScheduleService.of({
-        getSchedule: Effect.fn('ScheduleService.getSchedule')((date) =>
-          Effect.gen(function* () {
-            const isoDate = DateTime.formatIsoDate(date)
-
-            const json = yield* fs.readFileString(
-              path.resolve('./src/fixtures/stats-api/schedule', `${isoDate}.json`),
-            )
-            const response = yield* Schema.decodeUnknownEffect(
-              Schema.fromJsonString(ScheduleResponse),
-            )(json)
-            return response.dates[0] ?? ScheduleDate.empty(date)
-          }).pipe(Effect.catchTag('PlatformError', () => Effect.succeed(ScheduleDate.empty(date)))),
-        ),
-      })
-    }),
-  )
+export interface ScheduleServiceApi {
+  readonly get: (date: DateTime.DateTime) => Effect.Effect<Schedule, ScheduleUnavailable>
 }
+
+/** Public application service: normalized schedules and typed application errors only. */
+export class ScheduleService extends Context.Service<ScheduleService, ScheduleServiceApi>()(
+  '@macklinu/ballgame/ScheduleService',
+) {}

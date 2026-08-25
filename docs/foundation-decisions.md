@@ -50,18 +50,44 @@ and statuses rather than presenting them as ordinary games.
 - The bulb board is the default visual identity. It uses a plain-text fallback
   automatically when the terminal is unsuitable and exposes `--plain`.
 - The supported baseline is an 80x24 terminal; visual checks also cover
-  120x40.
+  120x40. Below that baseline, the application must degrade without crashing
+  or showing a dedicated resize-only screen.
 - Board rows show teams, score when legitimate, inning/state, scheduled time,
   and explicit status. Probable pitchers and lineup information belong in game
-  details, not the compact board.
+  details, not the compact board. Scheduled times use the user's local time
+  zone, while board membership follows MLB's official schedule date. A
+  timezone offset must never move an entry to a different board date.
 - The v0 board does **not** display runners, count, outs, current
   batter/pitcher, play-by-play, or pitch context.
 - Keyboard operation is required. The footer and `?` help make available keys
   discoverable. Mouse selection is an optional enhancement, never a required
   path.
+- Within each board section, preserve the official scheduled order. A change
+  from scheduled to live, delayed, final, or another status updates only that
+  row's content; it must not move the row.
+- Board selection represents the date-specific schedule occurrence, not only
+  the provider game reference. This preserves a postponed occurrence as
+  postponed when its later makeup uses the same provider game.
+- Plain rendering is a fully interactive visual mode: it preserves the same
+  selection, date navigation, game details, help, and board order as the bulb
+  renderer.
 - `ballgame` is one interactive command. Its stable v0 flags are `--date`,
   `--plain`, `--help`, and `--version`; non-interactive subcommands are out of
   scope.
+
+### Rendering resilience
+
+The bulb board remains the default where terminal output is interactive and
+can render it reliably. `--plain` always forces the fully interactive plain
+renderer. A terminal with Unicode but without truecolor keeps the bulb layout:
+use a high-contrast 256-color, 16-color, or monochrome palette as available.
+Do not require truecolor for bulbs.
+
+The 80x24 baseline is a layout target, not a hard launch gate. At smaller
+sizes, preserve as much compact, interactive content as fits and permit
+ordinary clipping or reflow rather than replacing the app with a resize
+message. The application must tolerate tiny terminal dimensions without
+throwing.
 
 ### Game details and historical truth
 
@@ -72,12 +98,20 @@ Every board row opens one adaptive detail shell:
 - Score-bearing games show matchup/status, inning linescore, compact batting
   (`AB`, `R`, `H`, `RBI`, `BB`, `SO`, `HR`) and pitching
   (`IP`, `H`, `R`, `ER`, `BB`, `SO`, `HR`) tables when the provider supplies
-  usable data.
+  usable data. Render every truthful section available from a partial
+  response, with an explicit empty state for each unavailable section rather
+  than hiding valid data or fabricating values.
 - Postponed, cancelled, or otherwise non-score-bearing games show the exact
   available status, reason, and scheduling context without empty stat tables
   or invented scores.
 - Ties, completed-early games, and forfeits use the same shell and show a box
   score only when the result and data are genuinely score-bearing.
+
+Keep v0 game-detail titles as ordinary compact text; a large 5x7 bulb title is
+a later visual enhancement. Details use Up/Down and Page Up/Page Down for
+scrolling, while Escape always returns to the schedule. A live refresh must
+make a best effort to preserve the reader's scroll position or visible content
+rather than resetting the view to the top.
 
 The selected local schedule date is the source of truth. A postponed occurrence
 remains postponed when its original date is viewed, even after a later makeup
@@ -177,6 +211,10 @@ The following are not v0 foundation or first-release requirements:
 - persistent user settings/cache, remote error reporting, Windows support,
   standalone binaries, and non-interactive CLI commands; and
 - a generic multi-provider product architecture.
+
+When command-center work begins after v0, it may reorder its live-game rows as
+its excitement ranking changes. That behavior is intentionally distinct from
+the position-stable bulb board.
 
 ## Foundation milestone order
 

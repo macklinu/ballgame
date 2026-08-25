@@ -91,13 +91,13 @@ own typed domain operations and external effects.
 
 ### Command layers
 
-| Layer               | Examples                                                                           | Rule                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| App                 | Quit, open help                                                                    | Lowest priority; always-present behavior only.                                   |
-| Schedule screen     | Previous/next/today, Go To Date, selection, open game, board/command-center switch | Mounted only by the appropriate schedule route.                                  |
-| Game-details screen | Back, detail-specific commands                                                     | Must not inherit schedule-selection bindings.                                    |
-| Top overlay         | Cancel, submit, confirm                                                            | Higher priority than the underlying screen; Escape closes the top overlay first. |
-| Focused widget      | Text editing, selection movement                                                   | Let OpenTUI's input/select components retain their native behavior.              |
+| Layer               | Examples                                                                                        | Rule                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| App                 | Quit, open help                                                                                 | Lowest priority; always-present behavior only.                                   |
+| Schedule screen     | Previous/next/today, Go To Date, selection, open game, open MLB.TV, board/command-center switch | Mounted only by the appropriate schedule route.                                  |
+| Game-details screen | Back, detail-specific commands                                                                  | Must not inherit schedule-selection bindings.                                    |
+| Top overlay         | Cancel, submit, confirm                                                                         | Higher priority than the underlying screen; Escape closes the top overlay first. |
+| Focused widget      | Text editing, selection movement                                                                | Let OpenTUI's input/select components retain their native behavior.              |
 
 This gives the intended Escape behavior without a long conditional chain: an open overlay owns Escape; otherwise the
 detail screen owns it; the schedule screen does not. It also permits the footer and the `?` help overlay to query the
@@ -111,7 +111,6 @@ Represent overlays with a tagged union and a stack, even if the first release on
 type Overlay = Data.TaggedEnum<{
   GoToDate: {}
   Help: {}
-  ConfirmOpenMlbTv: { game: GameRef }
 }>
 ```
 
@@ -136,15 +135,18 @@ React app
   -> KeymapProvider
   -> app-owned Atom runtime
        -> normalized ScheduleService and GameService
-            -> Mlb.layer or Fixture.layer
+            -> Mlb.layer
 ```
+
+Production uses the MLB layer. Test harnesses inject derived fixture services;
+fixtures are not a user-selectable runtime provider.
 
 Keep state small and identity-based:
 
 - `selectedDateAtom`
 - `navigationAtom` containing typed routes
 - `overlayStackAtom`
-- selection by `GameRef`, not array index
+- selection by `ScheduleOccurrence` (selected date plus `GameRef`), not array index
 - `scheduleForDateAtom(date)` and `gameDetailsAtom(gameRef)` for resources
 
 Use `Atom.fnSync` for synchronous transitions such as changing selected game or closing an overlay. Use `Atom.fn` for

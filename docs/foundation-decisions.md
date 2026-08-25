@@ -40,6 +40,7 @@ The first shippable journey is:
 2. Scan every official MLB game for that date on a compact old-school bulb
    board.
 3. Open any game for a truthful, useful detail view.
+4. Open the selected game's official MLB.TV page in the system browser.
 
 The board includes Spring Training, All-Star, regular-season, postseason,
 doubleheader, and other official schedule entries. It labels unusual game types
@@ -62,15 +63,21 @@ and statuses rather than presenting them as ordinary games.
 - Keyboard operation is required. The footer and `?` help make available keys
   discoverable. Mouse selection is an optional enhancement, never a required
   path.
-- Within each board section, preserve the official scheduled order. A change
-  from scheduled to live, delayed, final, or another status updates only that
-  row's content; it must not move the row.
+- List every official game on one board in official scheduled-start order, from
+  earliest to latest. A change from scheduled to live, delayed, final, or
+  another status updates only that row's content; it must not move the row.
 - Board selection represents the date-specific schedule occurrence, not only
   the provider game reference. This preserves a postponed occurrence as
   postponed when its later makeup uses the same provider game.
+- For a valid selected date with no official games, retain normal navigation
+  and show the concise empty state: “No games today.”
 - Plain rendering is a fully interactive visual mode: it preserves the same
   selection, date navigation, game details, help, and board order as the bulb
   renderer.
+- Lowercase `v` opens the selected game's official MLB.TV page in the system
+  browser. Ballgame delegates all authentication and availability decisions to
+  MLB's normal web experience; it does not inspect, find, or focus existing
+  browser tabs.
 - `ballgame` is one interactive command. Its stable v0 flags are `--date`,
   `--plain`, `--help`, and `--version`; non-interactive subcommands are out of
   scope.
@@ -164,16 +171,22 @@ states.
 
 - Publish one npm CLI package; do not create a workspace or separately
   published core/provider packages in v0.
-- Support Node.js **26.4.0 exactly** and Bun on macOS and Linux. Node launches
-  use ESM and the OpenTUI FFI requirements. Revalidate the exact Node contract
-  whenever the pinned OpenTUI version changes.
+- Support Node.js **26.4.0 exactly** and Bun **1.4 or later** on macOS and
+  Linux. Node launches use ESM and the OpenTUI FFI requirements. Revalidate the
+  exact Node contract whenever the pinned OpenTUI version changes.
 - The end-user package must run under ordinary `npx` and `bunx`; Nub is a
   contributor tool, not an end-user runtime dependency.
-- Nub is the required contributor command convention. Add its official skill
-  at project scope, pin it to an upstream revision, and use `nub`, `nub run`,
-  `nubx`, and `nub install` for development, scripts, local CLIs, and installs.
-  The foundation work must explicitly handle Nub's default denial of dependency
-  lifecycle scripts before retaining or replacing the current `prepare` hook.
+- Release built ESM JavaScript rather than raw TypeScript for the Node path:
+  Node refuses TypeScript files under `node_modules`, where `npx` installs the
+  package. A small Node launcher must enable OpenTUI's FFI requirement before
+  loading the application. Bun runs the same ESM distribution. Target-specific
+  executables are a fallback only if clean package checks show that this path is
+  not viable.
+- Nub is the required contributor command convention. Use the latest official
+  skill at project scope and use `nub`, `nub run`, `nubx`, and `nub install` for
+  development, scripts, local CLIs, and installs. The foundation work must
+  explicitly handle Nub's default denial of dependency lifecycle scripts before
+  retaining or replacing the current `prepare` hook.
 - Keep reproducible local source access by retaining the Effect and OpenTUI
   Git subtrees. Move the current `repos/effect` and `repos/opentui` subtrees to
   `vendor/effect` and `vendor/opentui` in a dedicated foundation change; do
@@ -192,7 +205,7 @@ provenance, and GitHub release creation.
 A first public release requires all of the following:
 
 - repeatable lint, format, typecheck, and fixture-backed test commands;
-- Node 26.4.0 and Bun verification on macOS and Linux;
+- Node 26.4.0 and Bun 1.4 verification on macOS and Linux;
 - a clean npm package/install/run check for both `npx` and `bunx`;
 - visual smoke checks at 80x24 and 120x40 for scheduled, live, final, delayed,
   and unavailable-data states, plus the plain fallback;
@@ -205,7 +218,7 @@ A first public release requires all of the following:
 The following are not v0 foundation or first-release requirements:
 
 - command-center ranking and its live-situation model;
-- notifications, sound, and MLB.TV launching;
+- notifications and sound;
 - base occupancy, count, current players, play-by-play, pitch charts, replay,
   timecodes, and JSON patch ingestion;
 - persistent user settings/cache, remote error reporting, Windows support,
@@ -219,7 +232,7 @@ the position-stable bulb board.
 ## Foundation milestone order
 
 1. **Repository and contributor foundation** — move tracked subtrees to
-   `vendor/`, record provenance/update steps, adopt the pinned Nub skill and
+   `vendor/`, record provenance/update steps, adopt the latest Nub skill and
    command convention, replace Bun-only development/runtime seams, and define
    the Node/Bun packaging path.
 2. **Domain and ingestion foundation** — define normalized MLB-facing domain
@@ -227,7 +240,8 @@ the position-stable bulb board.
    test-only derived fixtures, live scheduling, and retained-success refresh
    behavior.
 3. **Usable product slice** — build the scoped keymap/app shell, bulb board,
-   plain fallback, adaptive game details, and visual/interaction tests.
+   plain fallback, adaptive game details, selected-game MLB.TV action, and
+   visual/interaction tests.
 4. **Release foundation** — add Changesets, tag-driven trusted publishing,
    the OS/runtime CI matrix, package verification, and public documentation.
 

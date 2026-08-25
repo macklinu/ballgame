@@ -100,6 +100,18 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   prior vendor history. This safeguard and repair approach were recorded by
   the project coordinator after the user authorized the recovery.
 
+### 2026-08-25 — Merge native subtree imports without flattening them
+
+- GitHub's stacked-PR merge API initially rejected #22 because this repository
+  had merge commits disabled. Squash and rebase merging would flatten the
+  recovered native subtree imports and make their topology unusable.
+- The user explicitly authorized enabling merge commits. #22 was then merged
+  through GitHub's asynchronous stacked-PR API with `merge_method: merge`,
+  preserving its native subtree commits on `main`.
+- Prefer GitHub rebase merges for ordinary linear PRs. Use a merge commit only
+  when a PR intentionally requires two-parent history, such as a native Git
+  subtree import; call out that exception during review before merging.
+
 ## Reusable Blockers and Watch Items
 
 - The current source trees are under `repos/`; issue #2 must complete before

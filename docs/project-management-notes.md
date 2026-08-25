@@ -13,8 +13,9 @@ issues remain the authoritative source for ticket scope and dependency blocking.
 - Assigned each ticket to an isolated BB worktree with an atomic, PR-only
   delivery requirement. No agent may push or merge to `main`.
 - Downstream work will normally wait for a blocker PR to be stable and tested.
-  When productive, it may branch from that PR as an explicit GitHub PR stack;
-  it will never rely on uncommitted blocker work.
+  Sequential dependency chains use GitHub's native public-preview stacked-PR
+  workflow through the official `gh stack` extension; no dependent work may
+  rely on uncommitted blocker changes.
 - Issues #17–#19 explicitly state that they are post-release/post-v0 work, so
   they are excluded from the v0 delivery queue despite being open.
 - Release automation (#16) may be implemented and reviewed when its blockers
@@ -27,10 +28,18 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   updates it necessitates. It must not absorb upstream provenance or the
   refresh/update procedure, which are the explicit acceptance criteria of #3.
 
+### 2026-08-25 — Adopt GitHub native stacked PRs
+
+- Installed GitHub's official `gh-stack` extension (public preview) and its
+  agent guidance after reviewing GitHub's stacked-PR quickstart.
+- #4 is the stable bottom PR for a stack. #5 has started from #4's feature
+  branch and must be linked to it with `gh stack link` after opening its PR.
+- Use native stacks only for linear dependencies; multi-parent join points
+  wait for their parent PRs to merge rather than duplicating parent commits.
+
 ## Reusable Blockers and Watch Items
 
 - The current source trees are under `repos/`; issue #2 must complete before
   documentation work in #3 can name the final `vendor/` paths.
-- The official Nub guidance was not present in the initially discovered
-  workspace skills. The #4 owner must locate authoritative guidance or report
-  the gap before making toolchain-policy choices.
+- Issue #4 resolved the missing Nub guidance by adding the current official
+  Nub project skill, pinned to its upstream source revision, in its PR.

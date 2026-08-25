@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: nubjs/setup-nub@v0
+        with:
+          nub-version: 0.7.5
+      - name: Install dependencies
+        run: nub ci
+      - name: Check formatting
+        run: nubx oxfmt --disable-nested-config --check .
+      - name: Lint
+        run: nub run lint
+      - name: Typecheck
+        run: nub run typecheck
+      - name: Test
+        run: nub run test

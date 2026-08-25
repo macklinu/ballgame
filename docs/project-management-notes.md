@@ -99,8 +99,8 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   default.
 - A plain `repos/` → `vendor/` move does not retain recognized subtree prefixes:
   `git subtree pull` and `git subtree merge` reject the new paths as never
-  added. At the user's direction, #22 is being rebuilt with real vendor
-  subtree imports and #24 will be revised to document their native refresh
-  procedure. The temporary archive-based workaround must not merge.
+  added. At the user's direction, #22 was rebuilt with real vendor subtree
+  imports. #24 now documents the supported native refresh procedure; the
+  temporary archive-based workaround must not merge.
 - #28 has completed its local validation, but its GitHub Actions validation is
   pending #27's merge because the workflow did not exist when #28 opened.

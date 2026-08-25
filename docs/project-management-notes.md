@@ -47,7 +47,8 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   documentation work in #3 can name the final `vendor/` paths.
 - Issue #4 resolved the missing Nub guidance by adding the current official
   Nub project skill, pinned to its upstream source revision, in its PR.
-- The `repos/` → `vendor/` relocation was a plain Git move, not a Git subtree
-  import. `git subtree pull` and `git subtree merge` reject the new prefixes as
-  never added; vendor refreshes need the snapshot-based procedure being
-  documented in #3.
+- A plain `repos/` → `vendor/` move does not retain recognized subtree prefixes:
+  `git subtree pull` and `git subtree merge` reject the new paths as never
+  added. At the user's direction, #22 is being rebuilt with real vendor
+  subtree imports and #24 will be revised to document their native refresh
+  procedure. The temporary archive-based workaround must not merge.

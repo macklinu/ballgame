@@ -64,6 +64,26 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   This decision was made by the implementation agent without a separate user
   directive and is recorded in PR #27.
 
+### 2026-08-25 — Normalized-contract adapter boundary
+
+- Issue #5 keeps MLB DTOs, numeric provider identifiers, endpoint details, and
+  HTTP failures inside the MLB adapter. That adapter translates them to
+  Ballgame-owned game/team references, normalized schedule occurrences, and
+  tagged application errors before UI code receives them.
+- The adapter assigns opaque references from an in-memory mapping for the
+  lifetime of the application runtime, preserving a game identity across its
+  postponed and makeup schedule occurrences without exposing the provider ID.
+  This implementation decision was made without a separate user directive and
+  is covered by PR #28 tests.
+
+### 2026-08-25 — CI rollout ordering
+
+- PRs opened before #27 cannot run its new workflow until the workflow is on
+  `main`. After #27 merges, already-open implementation PRs must rebase or
+  otherwise receive a fresh validation run before being cleared for merge.
+- This applies first to #28. The rule was chosen by the project coordinator to
+  ensure the newly required CI actually validates the code it gates.
+
 ## Reusable Blockers and Watch Items
 
 - The current source trees are under `repos/`; issue #2 must complete before
@@ -82,3 +102,5 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   added. At the user's direction, #22 is being rebuilt with real vendor
   subtree imports and #24 will be revised to document their native refresh
   procedure. The temporary archive-based workaround must not merge.
+- #28 has completed its local validation, but its GitHub Actions validation is
+  pending #27's merge because the workflow did not exist when #28 opened.

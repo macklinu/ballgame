@@ -84,6 +84,22 @@ issues remain the authoritative source for ticket scope and dependency blocking.
 - This applies first to #28. The rule was chosen by the project coordinator to
   ensure the newly required CI actually validates the code it gates.
 
+### 2026-08-25 — Protect native subtree imports from stack rebases
+
+- GitHub's **Rebase stacks** action rewrote #22 to a branch identical to
+  `main`: its merge-only native subtree-import commits were dropped, leaving a
+  zero-file PR. A conventional rebase has the same risk because the local
+  subtree anchors are already reachable from the repository history.
+- Do not use GitHub stack rebases or ordinary rebases on a PR whose delivery
+  depends on native `git subtree` merge topology. If its base advances,
+  reconstruct each import with the intended first parent, local subtree anchor
+  as second parent, and the required `git-subtree-*` trailers; then verify the
+  vendor trees, `git subtree split`, refresh behavior, and CI.
+- Recovery rebuilt #22 on the CI-enabled `main` tip and replayed #24 with
+  `git rebase --onto` so that its documentation-only commit did not replay the
+  prior vendor history. This safeguard and repair approach were recorded by
+  the project coordinator after the user authorized the recovery.
+
 ## Reusable Blockers and Watch Items
 
 - The current source trees are under `repos/`; issue #2 must complete before
@@ -106,5 +122,9 @@ issues remain the authoritative source for ticket scope and dependency blocking.
   anchors and the upstream source snapshots named by those anchors' own
   `git-subtree-split` trailers. Documentation must not link a local anchor to
   the upstream repository; #24 records both layers explicitly.
-- #28 has completed its local validation, but its GitHub Actions validation is
-  pending #27's merge because the workflow did not exist when #28 opened.
+- #28 has completed its local and GitHub Actions validation after #27 merged;
+  it is awaiting product review.
+- Native subtree root PRs need manual topology-aware recovery after a base
+  change. Once the root is stable, documentation-only children may rebase with
+  `git rebase --onto <new-root> <old-root>`; verify their diff remains limited
+  to their owned files before relinking the stack.

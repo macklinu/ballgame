@@ -17,3 +17,11 @@ is planned for `npx @macklinu/ballgame` and `bunx @macklinu/ballgame`.
   — provider evidence and adapter constraints.
 - [CLI architecture technical review](docs/cli-architecture-technical-review.md)
   — OpenTUI/React/Effect implementation guidance.
+
+## Contributing
+
+The exact upstream sources for the runtime dependencies are available for
+inspection in [`vendor/effect`](vendor/effect) and
+[`vendor/opentui`](vendor/opentui). Treat them as vendored source trees, not as
+independently managed Ballgame repositories; application work belongs in
+[`src`](src).

@@ -358,7 +358,7 @@ updated are superseded by [Foundation decisions](foundation-decisions.md).
 | Data architecture           | Normalized MLB adapter boundary; derived test fixtures, not a selectable runtime provider.                                              |
 | Notifications               | Deferred until after the first public release.                                                                                          |
 | Effect preparation          | Validate current matching Effect v4 pins against the retained local source before foundation work.                                      |
-| Local library sources       | Retain the current Effect/OpenTUI subtrees and move them from `repos/` to documented `vendor/` paths in the foundation milestone.       |
+| Local library sources       | Retain the current Effect/OpenTUI subtrees at the documented `vendor/` paths.                                                           |
 | Bulb typography             | Use custom 3×5 bulbs on the daily board; keep the v0 detail title and body as ordinary text; a 5×7 masthead is a later enhancement.     |
 | Base occupancy              | Deferred until after the first public release.                                                                                          |
 | Schedule views              | The daily bulb board is the only v0 schedule view; command center is deferred.                                                          |

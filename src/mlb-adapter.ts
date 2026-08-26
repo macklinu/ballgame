@@ -187,80 +187,81 @@ const relatedDate = (
     Option.orElse(() => instant.pipe(Option.map(DateTime.formatIsoDate), Option.map(scheduleDate))),
   )
 
-const mapRawGame = (
+const unavailableOccurrence = (
   selectedDate: Schedule.ScheduleDate,
-  input: unknown,
-  references: References,
-): Effect.Effect<Schedule.ScheduleOccurrence, Schema.SchemaError> =>
-  Schema.decodeUnknownEffect(RawGame)(input).pipe(
-    Effect.map((raw) => {
-      const status = mapStatus(raw.status)
-      const away = mapTeam(raw.teams.away.team, references)
-      const home = mapTeam(raw.teams.home.team, references)
-      const score = Status.isScoreBearing(status)
-        ? Option.all({ away: raw.teams.away.score, home: raw.teams.home.score }).pipe(
-            Option.map((score) => Game.Score.make(score)),
-          )
-        : Option.none()
-      const game = Game.Game.make({
-        ref: references.game(raw.gamePk),
-        type: mapGameType(raw.gameType),
-        startsAt: raw.gameDate,
-        awayTeam: away,
-        homeTeam: home,
-        status,
-        score,
-      })
-      references.remember(game)
-      const rescheduledTo = relatedDate(raw.rescheduleGameDate, raw.rescheduleDate)
-      const rescheduledFrom = relatedDate(raw.rescheduledFromDate, raw.rescheduledFrom)
-
-      return Schedule.AvailableScheduleOccurrence.make({
-        _tag: 'Available',
-        selectedDate,
-        game,
-        rescheduledTo,
-        rescheduledFrom,
-      })
-    }),
-  )
-
-const unavailableOccurrence = (selectedDate: Schedule.ScheduleDate): Schedule.ScheduleOccurrence =>
-  Schedule.ScheduleOccurrence.make({
-    _tag: 'Unavailable',
+): Schedule.UnavailableScheduleOccurrence =>
+  Schedule.UnavailableScheduleOccurrence.make({
     selectedDate,
     message: 'Game data unavailable',
   })
 
-const mapPayload = (
-  selectedDate: DateTime.DateTime,
-  payload: typeof RawScheduleResponse.Type,
-  references: References,
-): Effect.Effect<Schedule.Schedule> => {
-  const date = scheduleDate(DateTime.formatIsoDate(selectedDate))
-  const games = payload.dates.flatMap((schedule) => schedule.games)
-
-  return Effect.forEach(games, (game) =>
-    mapRawGame(date, game, references).pipe(
-      Effect.orElseSucceed(() => unavailableOccurrence(date)),
-    ),
-  ).pipe(Effect.map((occurrences) => Schedule.Schedule.make({ date, occurrences })))
-}
-
-const scheduleUnavailable = (operation: string) => (cause: unknown) =>
+const scheduleUnavailable = (operation: string, cause: unknown) =>
   new Schedule.ScheduleUnavailable({ operation, cause })
 
-const mapSchedule = (date: DateTime.DateTime, input: unknown, references: References) =>
-  Schema.decodeUnknownEffect(RawScheduleResponse)(input).pipe(
-    Effect.flatMap((payload) => mapPayload(date, payload, references)),
-    Effect.mapError(scheduleUnavailable('MlbSchedule.decode')),
-  )
+/** Owns the adapter-private reference cache used by schedule and game lookups. */
+const makeScheduleMapper = (references: References) => {
+  const mapRawGame = (
+    selectedDate: Schedule.ScheduleDate,
+    input: unknown,
+  ): Effect.Effect<Schedule.ScheduleOccurrence, Schema.SchemaError> =>
+    Schema.decodeUnknownEffect(RawGame)(input).pipe(
+      Effect.map((raw) => {
+        const status = mapStatus(raw.status)
+        const away = mapTeam(raw.teams.away.team, references)
+        const home = mapTeam(raw.teams.home.team, references)
+        const score = Status.isScoreBearing(status)
+          ? Option.all({ away: raw.teams.away.score, home: raw.teams.home.score }).pipe(
+              Option.map((score) => Game.Score.make(score)),
+            )
+          : Option.none()
+        const game = Game.Game.make({
+          ref: references.game(raw.gamePk),
+          type: mapGameType(raw.gameType),
+          startsAt: raw.gameDate,
+          awayTeam: away,
+          homeTeam: home,
+          status,
+          score,
+        })
+        references.remember(game)
+        const rescheduledTo = relatedDate(raw.rescheduleGameDate, raw.rescheduleDate)
+        const rescheduledFrom = relatedDate(raw.rescheduledFromDate, raw.rescheduledFrom)
+
+        return Schedule.AvailableScheduleOccurrence.make({
+          selectedDate,
+          game,
+          rescheduledTo,
+          rescheduledFrom,
+        })
+      }),
+    )
+
+  const mapPayload = (
+    selectedDate: DateTime.DateTime,
+    payload: typeof RawScheduleResponse.Type,
+  ): Effect.Effect<Schedule.Schedule> => {
+    const date = scheduleDate(DateTime.formatIsoDate(selectedDate))
+    const games = payload.dates.flatMap((schedule) => schedule.games)
+
+    return Effect.forEach(games, (game) =>
+      mapRawGame(date, game).pipe(Effect.orElseSucceed(() => unavailableOccurrence(date))),
+    ).pipe(Effect.map((occurrences) => Schedule.Schedule.make({ date, occurrences })))
+  }
+
+  const map = (date: DateTime.DateTime, input: unknown) =>
+    Schema.decodeUnknownEffect(RawScheduleResponse)(input).pipe(
+      Effect.flatMap((payload) => mapPayload(date, payload)),
+      Effect.mapError((cause) => scheduleUnavailable('MlbSchedule.decode', cause)),
+    )
+
+  return { map, mapPayload }
+}
 
 /** Test-only adapter entry point. Its input stays untyped so raw DTO types stay private. */
 export const makeScheduleMapperForTest = () => {
-  const references = makeReferences()
+  const mapper = makeScheduleMapper(makeReferences())
 
-  return { map: (date: DateTime.DateTime, input: unknown) => mapSchedule(date, input, references) }
+  return { map: mapper.map }
 }
 
 export const mapScheduleForTest = (date: DateTime.DateTime, input: unknown) =>
@@ -274,6 +275,7 @@ export const layerLive = Layer.effectContext(
   Effect.gen(function* () {
     const httpClient = yield* HttpClient.HttpClient
     const references = makeReferences()
+    const scheduleMapper = makeScheduleMapper(references)
 
     const getSchedule = Effect.fn('MlbSchedule.get')(function* (date: DateTime.DateTime) {
       const payload = yield* httpClient
@@ -287,10 +289,10 @@ export const layerLive = Layer.effectContext(
         .pipe(
           Effect.flatMap(HttpClientResponse.filterStatusOk),
           Effect.flatMap(HttpClientResponse.schemaBodyJson(RawScheduleResponse)),
-          Effect.mapError(scheduleUnavailable('MlbSchedule.get')),
+          Effect.mapError((cause) => scheduleUnavailable('MlbSchedule.get', cause)),
         )
 
-      return yield* mapPayload(date, payload, references)
+      return yield* scheduleMapper.mapPayload(date, payload)
     })
 
     const getGame = Effect.fn('MlbGame.get')(function* (gameRef: Game.GameRef) {

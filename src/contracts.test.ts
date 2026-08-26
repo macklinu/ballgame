@@ -1,9 +1,9 @@
-import { it as effectIt } from '@effect/vitest'
+import { it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import * as Game from './Game'
 import * as Schedule from './Schedule'
@@ -40,7 +40,6 @@ const availableOccurrence = (
   gameStatus: Status.GameStatus,
 ) =>
   Schedule.AvailableScheduleOccurrence.make({
-    _tag: 'Available',
     selectedDate,
     game: game(ref, gameStatus),
     rescheduledTo: Option.none(),
@@ -48,12 +47,11 @@ const availableOccurrence = (
   })
 
 describe('game contracts', () => {
-  it('keeps the postponed original on its selected schedule date', () => {
+  test('keeps the postponed original on its selected schedule date', () => {
     const gameRef = 'game-makeup'
     const originalDate = Schedule.ScheduleDate.make('2025-04-05')
     const makeupDate = Schedule.ScheduleDate.make('2025-04-06')
     const original = Schedule.AvailableScheduleOccurrence.make({
-      _tag: 'Available',
       selectedDate: originalDate,
       game: game(
         gameRef,
@@ -72,13 +70,12 @@ describe('game contracts', () => {
     expect(Option.getOrThrow(original.rescheduledTo)).toBe('2025-04-06')
   })
 
-  it('relates a later makeup to its original occurrence', () => {
+  test('relates a later makeup to its original occurrence', () => {
     const gameRef = 'game-makeup'
     const originalDate = Schedule.ScheduleDate.make('2025-04-05')
     const makeupDate = Schedule.ScheduleDate.make('2025-04-06')
     const original = availableOccurrence(originalDate, gameRef, status('Postponed'))
     const makeup = Schedule.AvailableScheduleOccurrence.make({
-      _tag: 'Available',
       selectedDate: makeupDate,
       game: game(gameRef, status('Final')),
       rescheduledTo: Option.none(),
@@ -90,7 +87,7 @@ describe('game contracts', () => {
     expect(Option.getOrThrow(makeup.rescheduledFrom)).toBe(original.selectedDate)
   })
 
-  it.each<[Status.GameState, boolean]>([
+  test.each<[Status.GameState, boolean]>([
     ['Scheduled', false],
     ['Active', true],
     ['Delayed', true],
@@ -100,7 +97,7 @@ describe('game contracts', () => {
     expect(Status.isActivelyInProgress(status(state))).toBe(expected)
   })
 
-  it.each<[Status.GameState, boolean]>([
+  test.each<[Status.GameState, boolean]>([
     ['Final', true],
     ['CompletedEarly', true],
     ['Tied', true],
@@ -111,7 +108,7 @@ describe('game contracts', () => {
     expect(Status.isScoreBearing(status(state))).toBe(expected)
   })
 
-  it.each<[Status.GameState, boolean]>([
+  test.each<[Status.GameState, boolean]>([
     ['Suspended', false],
     ['Final', true],
     ['Postponed', true],
@@ -121,7 +118,7 @@ describe('game contracts', () => {
     expect(Status.isTerminal(status(state))).toBe(expected)
   })
 
-  it('continues polling a schedule with a non-terminal game', () => {
+  test('continues polling a schedule with a non-terminal game', () => {
     const date = Schedule.ScheduleDate.make('2025-04-05')
     const schedule = Schedule.Schedule.make({
       date,
@@ -131,7 +128,7 @@ describe('game contracts', () => {
     expect(Schedule.hasNonTerminalGame(schedule)).toBe(true)
   })
 
-  it('stops polling after every available game is terminal', () => {
+  test('stops polling after every available game is terminal', () => {
     const date = Schedule.ScheduleDate.make('2025-04-05')
     const schedule = Schedule.Schedule.make({
       date,
@@ -141,7 +138,7 @@ describe('game contracts', () => {
     expect(Schedule.hasNonTerminalGame(schedule)).toBe(false)
   })
 
-  effectIt.effect('keeps service failures in typed application-error channels', () => {
+  it.effect('keeps service failures in typed application-error channels', () => {
     const scheduleError = new Schedule.ScheduleUnavailable({
       operation: 'ScheduleService.get',
       cause: new Error('offline'),

@@ -5,3 +5,8 @@ Run `oxlint` and `oxfmt` with `--disable-nested-config`. Do not allow nested too
 # Nub
 
 Follow the project-scoped `.agents/skills/nub/SKILL.md`.
+
+# Documentation
+
+Keep documentation concise and scoped to the ticket. Record only reader-facing operational information; link to existing sources instead of adding implementation or recovery narrative.
+Put recurring agent workflow instructions in this file.

@@ -50,7 +50,9 @@ const rawGame = (status: RawStatus, options: RawGameOptions = {}) => {
   }
 }
 
-const mapSingle = (game: unknown) =>
+type RawGameFixture = ReturnType<typeof rawGame>
+
+const mapSingle = (game: RawGameFixture) =>
   MlbAdapter.mapScheduleForTest(selectedDate, { dates: [{ games: [game] }] })
 
 const asAvailable = (schedule: Schedule.Schedule): Schedule.AvailableScheduleOccurrence => {
@@ -61,7 +63,7 @@ const asAvailable = (schedule: Schedule.Schedule): Schedule.AvailableScheduleOcc
   return occurrence
 }
 
-const mapAvailable = (game: unknown) => mapSingle(game).pipe(Effect.map(asAvailable))
+const mapAvailable = (game: RawGameFixture) => mapSingle(game).pipe(Effect.map(asAvailable))
 
 const noScore: Option.Option<Game.Score> = Option.none()
 const score: Option.Option<Game.Score> = Option.some(Game.Score.make({ away: 1, home: 2 }))
@@ -83,19 +85,13 @@ describe('MLB adapter boundary', () => {
       const game = occurrence.game
 
       expect(occurrence.selectedDate).toBe('2025-04-05')
-      expect(game.type).toBe('AllStar')
-      expect({
-        name: game.awayTeam.name,
-        abbreviation: game.awayTeam.abbreviation,
-        shortName: game.awayTeam.shortName,
-      }).toEqual({ name: 'Away Club', abbreviation: 'AWY', shortName: 'Away' })
-      expect({
-        name: game.homeTeam.name,
-        abbreviation: game.homeTeam.abbreviation,
-        shortName: game.homeTeam.shortName,
-      }).toEqual({ name: 'Home Club', abbreviation: 'HME', shortName: 'Home' })
+      expect(game).toMatchObject({
+        type: 'AllStar',
+        awayTeam: { name: 'Away Club', abbreviation: 'AWY', shortName: 'Away' },
+        homeTeam: { name: 'Home Club', abbreviation: 'HME', shortName: 'Home' },
+        status: { label: 'Final after rain delay' },
+      })
       expect(Option.getOrThrow(game.score)).toEqual({ away: 3, home: 5 })
-      expect(game.status.label).toBe('Final after rain delay')
       expect(Option.getOrThrow(game.status.reason)).toBe('Rain delay')
       expect(String(game.ref)).not.toBe(String(input.gamePk))
       expect(game).not.toHaveProperty('gamePk')
@@ -267,7 +263,9 @@ describe('MLB adapter boundary', () => {
 
   effectIt.effect('retains a malformed game as an unavailable occurrence', () =>
     Effect.gen(function* () {
-      const schedule = yield* mapSingle({ gamePk: 'not-a-number' })
+      const schedule = yield* MlbAdapter.mapScheduleForTest(selectedDate, {
+        dates: [{ games: [{ gamePk: 'not-a-number' }] }],
+      })
       expect(schedule.occurrences).toEqual([
         {
           _tag: 'Unavailable',

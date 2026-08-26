@@ -1,9 +1,11 @@
 import { it as effectIt } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { describe, expect } from 'vitest'
 
 import * as MlbAdapter from './mlb-adapter'
+import * as Schedule from './Schedule'
 
 const at = (value: string) => Schema.decodeSync(Schema.DateTimeUtcFromString)(value)
 const selectedDate = at('2025-04-05T00:00:00Z')
@@ -119,16 +121,16 @@ describe('MLB adapter boundary', () => {
         const occurrence = schedule.occurrences[0]
 
         expect(occurrence).toBeDefined()
-        if (occurrence === undefined || occurrence._tag !== 'Available') {
+        if (occurrence === undefined || !Schedule.isAvailableScheduleOccurrence(occurrence)) {
           throw new Error('Expected a mapped schedule occurrence')
         }
 
         expect(occurrence.selectedDate).toBe('2025-04-05')
-        expect(occurrence.game.status._tag).toBe(testCase.expected)
+        expect(occurrence.game.status.state).toBe(testCase.expected)
         expect(occurrence.game).not.toHaveProperty('gamePk')
         expect(occurrence.game.awayTeam).not.toHaveProperty('id')
         expect(occurrence.game.ref).toMatch(/^game-/)
-        expect(occurrence.game.score !== undefined).toBe(testCase.hasScore)
+        expect(Option.isSome(occurrence.game.score)).toBe(testCase.hasScore)
       }),
     )
   }
@@ -179,18 +181,18 @@ describe('MLB adapter boundary', () => {
       if (
         original === undefined ||
         makeup === undefined ||
-        original._tag !== 'Available' ||
-        makeup._tag !== 'Available'
+        !Schedule.isAvailableScheduleOccurrence(original) ||
+        !Schedule.isAvailableScheduleOccurrence(makeup)
       ) {
         throw new Error('Expected available schedule occurrences')
       }
 
       expect(original.selectedDate).toBe('2025-04-05')
-      expect(original.game.status._tag).toBe('Postponed')
-      expect(original.rescheduledTo).toBe('2025-04-06')
+      expect(original.game.status.state).toBe('Postponed')
+      expect(Option.getOrThrow(original.rescheduledTo)).toBe('2025-04-06')
       expect(makeup.selectedDate).toBe('2025-04-06')
-      expect(makeup.game.status._tag).toBe('Final')
-      expect(makeup.rescheduledFrom).toBe('2025-04-05')
+      expect(makeup.game.status.state).toBe('Final')
+      expect(Option.getOrThrow(makeup.rescheduledFrom)).toBe('2025-04-05')
       expect(original.game.ref).toBe(makeup.game.ref)
     }),
   )

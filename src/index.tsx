@@ -9,7 +9,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Number from 'effect/Number'
-import * as Schedule from 'effect/Schedule'
+import * as Option from 'effect/Option'
+import * as EffectSchedule from 'effect/Schedule'
 import * as Stream from 'effect/Stream'
 import * as FetchHttpClient from 'effect/unstable/http/FetchHttpClient'
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult'
@@ -20,7 +21,7 @@ import { dateAtom, goToDateAtom, nextDay, now, previousDay } from './date'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
 import * as Mlb from './mlb-adapter'
-import * as ScheduleContract from './Schedule'
+import * as Schedule from './Schedule'
 import { useCurrentView, View } from './View'
 
 const scheduleRuntime = Atom.runtime(Mlb.layerLive.pipe(Layer.provide(FetchHttpClient.layer)))
@@ -28,14 +29,14 @@ const scheduleRuntime = Atom.runtime(Mlb.layerLive.pipe(Layer.provide(FetchHttpC
 const getScheduleForDate = Effect.fn('Schedule.getScheduleForDate')(function* (
   date: DateTime.DateTime,
 ) {
-  const scheduleService = yield* ScheduleContract.ScheduleService
+  const scheduleService = yield* Schedule.ScheduleService
   return yield* scheduleService.get(date)
 })
 
 const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
   scheduleRuntime.atom(
-    Stream.fromEffectSchedule(getScheduleForDate(date), Schedule.spaced('15 seconds')).pipe(
-      Stream.takeUntil((schedule) => !ScheduleContract.hasNonTerminalGame(schedule)),
+    Stream.fromEffectSchedule(getScheduleForDate(date), EffectSchedule.spaced('15 seconds')).pipe(
+      Stream.takeUntil((schedule) => !Schedule.hasNonTerminalGame(schedule)),
     ),
   ),
 )
@@ -105,7 +106,7 @@ const KeyboardShortcut = ({ shortcut, description }: { shortcut: string; descrip
   </box>
 )
 
-const DailyGameView = ({ schedule }: { schedule: ScheduleContract.Schedule }) => {
+const DailyGameView = ({ schedule }: { schedule: Schedule.Schedule }) => {
   const selectedGameIndex = useAtomValue(selectedGameIndexAtom)
 
   const { pushView } = useCurrentView()
@@ -130,7 +131,7 @@ const DailyGameView = ({ schedule }: { schedule: ScheduleContract.Schedule }) =>
       justifyContent='center'
     >
       {schedule.occurrences.map((occurrence, index) =>
-        occurrence._tag === 'Available' ? (
+        Schedule.isAvailableScheduleOccurrence(occurrence) ? (
           <GameGridItem
             onMouseUp={(e) => {
               pushView(View.GameDetails({ occurrence }))
@@ -156,11 +157,7 @@ const DailyGameView = ({ schedule }: { schedule: ScheduleContract.Schedule }) =>
   )
 }
 
-const GameDetailsView = ({
-  occurrence,
-}: {
-  occurrence: ScheduleContract.AvailableScheduleOccurrence
-}) => {
+const GameDetailsView = ({ occurrence }: { occurrence: Schedule.AvailableScheduleOccurrence }) => {
   const { game } = occurrence
   return (
     <box flexDirection='column' padding={2} borderStyle='single'>
@@ -168,13 +165,18 @@ const GameDetailsView = ({
         {game.awayTeam.name} at {game.homeTeam.name}
       </text>
       <text>{game.status.label}</text>
-      {game.status.reason === undefined ? null : <text>{game.status.reason}</text>}
-      {occurrence.rescheduledTo === undefined ? null : (
-        <text>Rescheduled to {occurrence.rescheduledTo}</text>
-      )}
-      {occurrence.rescheduledFrom === undefined ? null : (
-        <text>Rescheduled from {occurrence.rescheduledFrom}</text>
-      )}
+      {Option.match(game.status.reason, {
+        onNone: () => null,
+        onSome: (reason) => <text>{reason}</text>,
+      })}
+      {Option.match(occurrence.rescheduledTo, {
+        onNone: () => null,
+        onSome: (date) => <text>Rescheduled to {date}</text>,
+      })}
+      {Option.match(occurrence.rescheduledFrom, {
+        onNone: () => null,
+        onSome: (date) => <text>Rescheduled from {date}</text>,
+      })}
     </box>
   )
 }
@@ -221,7 +223,7 @@ const App = () => {
     if (key.name === 'return') {
       whenSuccess(schedule, (schedule) => {
         const occurrence = schedule.occurrences[selectedGameIndex]
-        if (occurrence !== undefined && occurrence._tag === 'Available') {
+        if (occurrence !== undefined && Schedule.isAvailableScheduleOccurrence(occurrence)) {
           pushView(View.GameDetails({ occurrence }))
         }
       })

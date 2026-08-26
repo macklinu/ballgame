@@ -1,6 +1,7 @@
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 
 import * as Status from './Status'
@@ -40,7 +41,7 @@ export interface Game {
   readonly awayTeam: Team.Team
   readonly homeTeam: Team.Team
   readonly status: Status.GameStatus
-  readonly score?: Score
+  readonly score: Option.Option<Score>
 }
 
 export const Game = Schema.Struct({
@@ -50,11 +51,8 @@ export const Game = Schema.Struct({
   awayTeam: Team.Team,
   homeTeam: Team.Team,
   status: Status.GameStatus,
-  score: Schema.optionalKey(Score),
+  score: Schema.OptionFromOptionalKey(Score),
 })
-
-export const hasScore = (game: Game): game is Game & { readonly score: Score } =>
-  game.score !== undefined
 
 export class GameNotFound extends Schema.TaggedError<GameNotFound>()('GameNotFound', {
   gameRef: GameRef,

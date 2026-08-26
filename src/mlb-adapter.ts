@@ -2,6 +2,8 @@ import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as HttpClient from 'effect/unstable/http/HttpClient'
 import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
@@ -17,7 +19,7 @@ const RawStatus = Schema.Struct({
   codedGameState: Schema.NonEmptyString,
   detailedState: Schema.NonEmptyString,
   statusCode: Schema.NonEmptyString,
-  reason: Schema.optionalKey(Schema.NonEmptyString),
+  reason: Schema.OptionFromOptionalKey(Schema.NonEmptyString),
 })
 
 const RawTeam = Schema.Struct({
@@ -29,7 +31,7 @@ const RawTeam = Schema.Struct({
 
 const RawTeamLine = Schema.Struct({
   team: RawTeam,
-  score: Schema.optionalKey(Schema.Int),
+  score: Schema.OptionFromOptionalKey(Schema.Int),
 })
 
 const RawGame = Schema.Struct({
@@ -41,10 +43,10 @@ const RawGame = Schema.Struct({
     away: RawTeamLine,
     home: RawTeamLine,
   }),
-  rescheduleDate: Schema.optionalKey(Schema.DateTimeUtcFromString),
-  rescheduleGameDate: Schema.optionalKey(Schema.NonEmptyString),
-  rescheduledFrom: Schema.optionalKey(Schema.DateTimeUtcFromString),
-  rescheduledFromDate: Schema.optionalKey(Schema.NonEmptyString),
+  rescheduleDate: Schema.OptionFromOptionalKey(Schema.DateTimeUtcFromString),
+  rescheduleGameDate: Schema.OptionFromOptionalKey(Schema.NonEmptyString),
+  rescheduledFrom: Schema.OptionFromOptionalKey(Schema.DateTimeUtcFromString),
+  rescheduledFromDate: Schema.OptionFromOptionalKey(Schema.NonEmptyString),
 })
 
 const RawScheduleResponse = Schema.Struct({
@@ -59,7 +61,7 @@ interface References {
   readonly game: (gamePk: number) => Game.GameRef
   readonly team: (teamId: number) => Team.TeamRef
   readonly remember: (game: Game.Game) => void
-  readonly findGame: (gameRef: Game.GameRef) => Game.Game | undefined
+  readonly findGame: (gameRef: Game.GameRef) => Option.Option<Game.Game>
 }
 
 const makeReferences = (): References => {
@@ -95,14 +97,43 @@ const makeReferences = (): References => {
     remember: (game) => {
       games.set(game.ref, game)
     },
-    findGame: (gameRef) => games.get(gameRef),
+    findGame: (gameRef) => Option.fromUndefinedOr(games.get(gameRef)),
   }
 }
 
-const statusFields = (status: typeof RawStatus.Type) =>
-  status.reason === undefined
-    ? { label: status.detailedState }
-    : { label: status.detailedState, reason: status.reason }
+const terminalState = (statusCode: string): Status.GameState => {
+  if (statusCode.startsWith('CE')) {
+    return 'CompletedEarly'
+  }
+  if (statusCode.startsWith('T')) {
+    return 'Tied'
+  }
+  if (statusCode.startsWith('Q') || statusCode.startsWith('R')) {
+    return 'Forfeit'
+  }
+  return 'Final'
+}
+
+const gameState = (state: Status.GameState): Status.GameState => state
+
+const mapStatusState = (raw: typeof RawStatus.Type): Status.GameState =>
+  Match.value(raw.codedGameState).pipe(
+    Match.when('P', () => gameState(raw.statusCode === 'PW' ? 'Warmup' : 'Scheduled')),
+    Match.when('I', () => {
+      if (raw.statusCode.startsWith('D')) {
+        return gameState('Delayed')
+      }
+      if (raw.statusCode.startsWith('M') || raw.statusCode.startsWith('N')) {
+        return gameState('UnderReview')
+      }
+      return gameState('Active')
+    }),
+    Match.whenOr('U', 'T', () => gameState('Suspended')),
+    Match.when('D', () => gameState('Postponed')),
+    Match.when('C', () => gameState('Cancelled')),
+    Match.whenOr('F', 'O', () => terminalState(raw.statusCode)),
+    Match.orElse(() => gameState('Unknown')),
+  )
 
 /**
  * Maps documented MLB status codes without treating an English display label as
@@ -110,43 +141,11 @@ const statusFields = (status: typeof RawStatus.Type) =>
  * as the safe Unknown domain state.
  */
 const mapStatus = (raw: typeof RawStatus.Type): Status.GameStatus => {
-  const fields = statusFields(raw)
-
-  switch (raw.codedGameState) {
-    case 'P':
-      return raw.statusCode === 'PW'
-        ? Status.GameStatus.make({ _tag: 'Warmup', ...fields })
-        : Status.GameStatus.make({ _tag: 'Scheduled', ...fields })
-    case 'I':
-      if (raw.statusCode.startsWith('D')) {
-        return Status.GameStatus.make({ _tag: 'Delayed', ...fields })
-      }
-      if (raw.statusCode.startsWith('M') || raw.statusCode.startsWith('N')) {
-        return Status.GameStatus.make({ _tag: 'UnderReview', ...fields })
-      }
-      return Status.GameStatus.make({ _tag: 'Active', ...fields })
-    case 'U':
-    case 'T':
-      return Status.GameStatus.make({ _tag: 'Suspended', ...fields })
-    case 'D':
-      return Status.GameStatus.make({ _tag: 'Postponed', ...fields })
-    case 'C':
-      return Status.GameStatus.make({ _tag: 'Cancelled', ...fields })
-    case 'F':
-    case 'O':
-      if (raw.statusCode.startsWith('CE')) {
-        return Status.GameStatus.make({ _tag: 'CompletedEarly', ...fields })
-      }
-      if (raw.statusCode.startsWith('T')) {
-        return Status.GameStatus.make({ _tag: 'Tied', ...fields })
-      }
-      if (raw.statusCode.startsWith('Q') || raw.statusCode.startsWith('R')) {
-        return Status.GameStatus.make({ _tag: 'Forfeit', ...fields })
-      }
-      return Status.GameStatus.make({ _tag: 'Final', ...fields })
-    default:
-      return Status.GameStatus.make({ _tag: 'Unknown', ...fields })
-  }
+  return Status.GameStatus.make({
+    state: mapStatusState(raw),
+    label: raw.detailedState,
+    reason: raw.reason,
+  })
 }
 
 const mapGameType = (raw: string): Game.GameType => {
@@ -180,14 +179,13 @@ const mapTeam = (raw: typeof RawTeam.Type, references: References): Team.Team =>
 const scheduleDate = (value: string): Schedule.ScheduleDate => Schedule.ScheduleDate.make(value)
 
 const relatedDate = (
-  date: string | undefined,
-  instant: DateTime.DateTime | undefined,
-): Schedule.ScheduleDate | undefined =>
-  date === undefined
-    ? instant === undefined
-      ? undefined
-      : scheduleDate(DateTime.formatIsoDate(instant))
-    : scheduleDate(date)
+  date: Option.Option<string>,
+  instant: Option.Option<DateTime.DateTime>,
+): Option.Option<Schedule.ScheduleDate> =>
+  date.pipe(
+    Option.map(scheduleDate),
+    Option.orElse(() => instant.pipe(Option.map(DateTime.formatIsoDate), Option.map(scheduleDate))),
+  )
 
 const mapRawGame = (
   selectedDate: Schedule.ScheduleDate,
@@ -199,12 +197,11 @@ const mapRawGame = (
       const status = mapStatus(raw.status)
       const away = mapTeam(raw.teams.away.team, references)
       const home = mapTeam(raw.teams.home.team, references)
-      const score =
-        Status.isScoreBearing(status) &&
-        raw.teams.away.score !== undefined &&
-        raw.teams.home.score !== undefined
-          ? Game.Score.make({ away: raw.teams.away.score, home: raw.teams.home.score })
-          : undefined
+      const score = Status.isScoreBearing(status)
+        ? Option.all({ away: raw.teams.away.score, home: raw.teams.home.score }).pipe(
+            Option.map((score) => Game.Score.make(score)),
+          )
+        : Option.none()
       const game = Game.Game.make({
         ref: references.game(raw.gamePk),
         type: mapGameType(raw.gameType),
@@ -212,18 +209,18 @@ const mapRawGame = (
         awayTeam: away,
         homeTeam: home,
         status,
-        ...(score === undefined ? {} : { score }),
+        score,
       })
       references.remember(game)
       const rescheduledTo = relatedDate(raw.rescheduleGameDate, raw.rescheduleDate)
       const rescheduledFrom = relatedDate(raw.rescheduledFromDate, raw.rescheduledFrom)
 
-      return Schedule.ScheduleOccurrence.make({
+      return Schedule.AvailableScheduleOccurrence.make({
         _tag: 'Available',
         selectedDate,
         game,
-        ...(rescheduledTo === undefined ? {} : { rescheduledTo }),
-        ...(rescheduledFrom === undefined ? {} : { rescheduledFrom }),
+        rescheduledTo,
+        rescheduledFrom,
       })
     }),
   )
@@ -297,13 +294,15 @@ export const layerLive = Layer.effectContext(
     })
 
     const getGame = Effect.fn('MlbGame.get')(function* (gameRef: Game.GameRef) {
-      const game = references.findGame(gameRef)
-      if (game === undefined) {
-        return yield* new Game.GameNotFound({ gameRef })
-      }
-      return game
+      return yield* Option.match(references.findGame(gameRef), {
+        onNone: () => Effect.fail(new Game.GameNotFound({ gameRef })),
+        onSome: (game) => Effect.succeed(game),
+      })
     })
 
+    // One adapter acquisition supplies both public services. They share the
+    // private reference cache, so a game returned by a schedule remains
+    // addressable by the GameService without exposing provider identifiers.
     return Context.empty().pipe(
       Context.add(Schedule.ScheduleService, Schedule.ScheduleService.of({ get: getSchedule })),
       Context.add(Game.GameService, Game.GameService.of({ get: getGame })),

@@ -1,4 +1,5 @@
 import type { BoxProps } from '@opentui/react'
+import * as Option from 'effect/Option'
 
 import * as Game from './Game'
 
@@ -22,12 +23,15 @@ export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
           <text>{game.awayTeam.abbreviation}</text>
           <text>{game.homeTeam.abbreviation}</text>
         </box>
-        {Game.hasScore(game) && (
-          <box flexDirection='column'>
-            <text>{game.score.away}</text>
-            <text>{game.score.home}</text>
-          </box>
-        )}
+        {Option.match(game.score, {
+          onNone: () => null,
+          onSome: (score) => (
+            <box flexDirection='column'>
+              <text>{score.away}</text>
+              <text>{score.home}</text>
+            </box>
+          ),
+        })}
       </box>
       <box>
         <text>{game.status.label}</text>

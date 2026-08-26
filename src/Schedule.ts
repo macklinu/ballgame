@@ -22,9 +22,18 @@ export const AvailableScheduleOccurrence = Schema.TaggedStruct('Available', {
 })
 export type AvailableScheduleOccurrence = typeof AvailableScheduleOccurrence.Type
 
+/** A stable, application-owned diagnostic for an unavailable schedule row. */
+export class ScheduleOccurrenceDiagnostic extends Schema.TaggedError<ScheduleOccurrenceDiagnostic>()(
+  'InvalidGameData',
+  {
+    message: Schema.NonEmptyString,
+  },
+) {}
+
 export const UnavailableScheduleOccurrence = Schema.TaggedStruct('Unavailable', {
   selectedDate: ScheduleDate,
   message: Schema.NonEmptyString,
+  diagnostic: ScheduleOccurrenceDiagnostic,
 })
 export type UnavailableScheduleOccurrence = typeof UnavailableScheduleOccurrence.Type
 

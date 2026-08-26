@@ -11,48 +11,131 @@ import * as Schedule from './Schedule'
 const at = (value: string) => Schema.decodeSync(Schema.DateTimeUtcFromString)(value)
 const selectedDate = at('2025-04-05T00:00:00Z')
 
-interface RawStatus {
-  readonly codedGameState: string
-  readonly statusCode: string
-  readonly detailedState: string
-  readonly reason?: string
+interface ScheduleStatusFixture {
+  readonly codedGameState?: string | null
+  readonly statusCode?: string | null
+  readonly detailedState?: string | null
+  readonly reason?: string | null
 }
 
-interface RawGameOptions {
-  readonly gameType?: string
-  readonly awayScore?: number
-  readonly homeScore?: number
-  readonly rescheduleDate?: string
-  readonly rescheduleGameDate?: string
-  readonly rescheduledFrom?: string
-  readonly rescheduledFromDate?: string
+interface LinescoreFixture {
+  readonly innings?: ReadonlyArray<{
+    readonly away?: { readonly runs?: number }
+    readonly home?: { readonly runs?: number }
+  }>
 }
 
-const rawGame = (status: RawStatus, options: RawGameOptions = {}) => {
-  const { gameType = 'R', awayScore = 1, homeScore = 2, ...scheduleFields } = options
+interface ScheduleGameFixture {
+  readonly gamePk: number
+  readonly gameType?: string | null
+  readonly gameDate: string
+  readonly status: ScheduleStatusFixture
+  readonly teams: {
+    readonly away: ScheduleTeamLineFixture
+    readonly home: ScheduleTeamLineFixture
+  }
+  readonly linescore?: LinescoreFixture | null
+  readonly rescheduleDate?: string | null
+  readonly rescheduleGameDate?: string | null
+  readonly rescheduledFrom?: string | null
+  readonly rescheduledFromDate?: string | null
+}
+
+interface ScheduleTeamLineFixture {
+  readonly team: ScheduleTeamFixture
+  readonly score?: number | null
+}
+
+interface ScheduleTeamFixture {
+  readonly id: number
+  readonly name: string
+  readonly abbreviation?: string | null
+  readonly shortName?: string | null
+}
+
+interface InvalidGameFixture {
+  readonly gamePk: string
+}
+
+interface ScheduleFixture {
+  readonly dates: ReadonlyArray<{
+    readonly games: ReadonlyArray<ScheduleGameFixture | InvalidGameFixture>
+  }>
+}
+
+interface ScheduleGameOptions {
+  readonly gamePk?: number
+  readonly gameType?: string | null
+  readonly awayScore?: number | null
+  readonly homeScore?: number | null
+  readonly awayAbbreviation?: string | null
+  readonly homeAbbreviation?: string | null
+  readonly awayShortName?: string | null
+  readonly homeShortName?: string | null
+  readonly linescore?: LinescoreFixture | null
+  readonly rescheduleDate?: string | null
+  readonly rescheduleGameDate?: string | null
+  readonly rescheduledFrom?: string | null
+  readonly rescheduledFromDate?: string | null
+}
+
+const optional = <T>(value: T | undefined, key: string): { readonly [key: string]: T } =>
+  value === undefined ? {} : { [key]: value }
+
+const scheduleGame = (
+  status: ScheduleStatusFixture,
+  options: ScheduleGameOptions = {},
+): ScheduleGameFixture => {
+  const {
+    gamePk = 778443,
+    gameType = 'R',
+    awayScore = 1,
+    homeScore = 2,
+    awayAbbreviation = 'AWY',
+    homeAbbreviation = 'HME',
+    awayShortName = 'Away',
+    homeShortName = 'Home',
+    linescore,
+    rescheduleDate,
+    rescheduleGameDate,
+    rescheduledFrom,
+    rescheduledFromDate,
+  } = options
 
   return {
-    gamePk: 778443,
+    gamePk,
     gameType,
     gameDate: '2025-04-05T20:10:00Z',
     status,
     teams: {
       away: {
-        score: awayScore,
-        team: { id: 1, name: 'Away Club', abbreviation: 'AWY', shortName: 'Away' },
+        ...optional(awayScore, 'score'),
+        team: {
+          id: 1,
+          name: 'Away Club',
+          ...optional(awayAbbreviation, 'abbreviation'),
+          ...optional(awayShortName, 'shortName'),
+        },
       },
       home: {
-        score: homeScore,
-        team: { id: 2, name: 'Home Club', abbreviation: 'HME', shortName: 'Home' },
+        ...optional(homeScore, 'score'),
+        team: {
+          id: 2,
+          name: 'Home Club',
+          ...optional(homeAbbreviation, 'abbreviation'),
+          ...optional(homeShortName, 'shortName'),
+        },
       },
     },
-    ...scheduleFields,
+    ...optional(linescore, 'linescore'),
+    ...optional(rescheduleDate, 'rescheduleDate'),
+    ...optional(rescheduleGameDate, 'rescheduleGameDate'),
+    ...optional(rescheduledFrom, 'rescheduledFrom'),
+    ...optional(rescheduledFromDate, 'rescheduledFromDate'),
   }
 }
 
-type RawGameFixture = ReturnType<typeof rawGame>
-
-const mapSingle = (game: RawGameFixture) =>
+const mapSingle = (game: ScheduleGameFixture) =>
   MlbAdapter.mapScheduleForTest(selectedDate, { dates: [{ games: [game] }] })
 
 const asAvailable = (schedule: Schedule.Schedule): Schedule.AvailableScheduleOccurrence => {
@@ -63,14 +146,14 @@ const asAvailable = (schedule: Schedule.Schedule): Schedule.AvailableScheduleOcc
   return occurrence
 }
 
-const mapAvailable = (game: RawGameFixture) => mapSingle(game).pipe(Effect.map(asAvailable))
+const mapAvailable = (game: ScheduleGameFixture) => mapSingle(game).pipe(Effect.map(asAvailable))
 
 const noScore: Option.Option<Game.Score> = Option.none()
 const score: Option.Option<Game.Score> = Option.some(Game.Score.make({ away: 1, home: 2 }))
 
 describe('MLB adapter boundary', () => {
   effectIt.effect('maps only normalized public game fields', () => {
-    const input = rawGame(
+    const input = scheduleGame(
       {
         codedGameState: 'F',
         statusCode: 'F',
@@ -110,7 +193,7 @@ describe('MLB adapter boundary', () => {
   ])('maps game type $raw to $expected', (testCase) =>
     Effect.gen(function* () {
       const occurrence = yield* mapAvailable(
-        rawGame(
+        scheduleGame(
           { codedGameState: 'P', statusCode: 'S', detailedState: 'Scheduled' },
           {
             gameType: testCase.raw,
@@ -160,6 +243,12 @@ describe('MLB adapter boundary', () => {
       score: noScore,
     },
     {
+      name: 'resumed',
+      status: { codedGameState: 'I', statusCode: 'I', detailedState: 'Resumed' },
+      state: 'Active',
+      score: noScore,
+    },
+    {
       name: 'score-bearing terminal',
       status: { codedGameState: 'F', statusCode: 'F', detailedState: 'Final' },
       state: 'Final',
@@ -203,12 +292,43 @@ describe('MLB adapter boundary', () => {
     },
   ])('maps $name to a normalized state and exact score Option', (testCase) =>
     Effect.gen(function* () {
-      const occurrence = yield* mapAvailable(rawGame(testCase.status))
+      const occurrence = yield* mapAvailable(scheduleGame(testCase.status))
 
       expect({ state: occurrence.game.status.state, score: occurrence.game.score }).toEqual({
         state: testCase.state,
         score: testCase.score,
       })
+    }),
+  )
+
+  effectIt.effect('keeps a future game when optional metadata and linescore data are partial', () =>
+    Effect.gen(function* () {
+      const occurrence = yield* mapAvailable(
+        scheduleGame(
+          { codedGameState: 'P', statusCode: null, detailedState: null, reason: null },
+          {
+            gameType: null,
+            awayScore: null,
+            homeScore: null,
+            awayAbbreviation: null,
+            homeAbbreviation: null,
+            awayShortName: null,
+            homeShortName: null,
+            linescore: { innings: [{ home: { runs: 1 } }] },
+            rescheduleDate: null,
+            rescheduledFromDate: null,
+          },
+        ),
+      )
+
+      expect(occurrence.game).toMatchObject({
+        type: 'Other',
+        awayTeam: { abbreviation: 'Away Club', shortName: 'Away Club' },
+        homeTeam: { abbreviation: 'Home Club', shortName: 'Home Club' },
+        status: { state: 'Scheduled', label: 'Scheduled' },
+      })
+      expect(occurrence.game.score).toEqual(noScore)
+      expect(occurrence.game.status.reason).toEqual(Option.none())
     }),
   )
 
@@ -230,7 +350,7 @@ describe('MLB adapter boundary', () => {
         dates: [
           {
             games: [
-              rawGame(
+              scheduleGame(
                 { codedGameState: 'D', statusCode: 'DR', detailedState: 'Postponed' },
                 testCase.original,
               ),
@@ -242,7 +362,7 @@ describe('MLB adapter boundary', () => {
         dates: [
           {
             games: [
-              rawGame(
+              scheduleGame(
                 { codedGameState: 'F', statusCode: 'F', detailedState: 'Final' },
                 testCase.makeup,
               ),
@@ -261,22 +381,42 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect('retains a malformed game as an unavailable occurrence', () =>
+  effectIt.effect('retains usable games when one schedule entry is malformed', () =>
     Effect.gen(function* () {
-      const schedule = yield* MlbAdapter.mapScheduleForTest(selectedDate, {
-        dates: [{ games: [{ gamePk: 'not-a-number' }] }],
-      })
-      expect(schedule.occurrences).toEqual([
-        {
-          _tag: 'Unavailable',
-          selectedDate: '2025-04-05',
-          message: 'Game data unavailable',
-        },
+      const fixture: ScheduleFixture = {
+        dates: [
+          {
+            games: [
+              scheduleGame({ codedGameState: 'P', statusCode: 'S', detailedState: 'Scheduled' }),
+              { gamePk: 'not-a-number' },
+              scheduleGame(
+                { codedGameState: 'F', statusCode: 'F', detailedState: 'Final' },
+                { gamePk: 778444 },
+              ),
+            ],
+          },
+        ],
+      }
+      const schedule = yield* MlbAdapter.mapScheduleForTest(selectedDate, fixture)
+      const unavailable = schedule.occurrences[1]
+
+      expect(schedule.occurrences.map((occurrence) => occurrence._tag)).toEqual([
+        'Available',
+        'Unavailable',
+        'Available',
       ])
+      expect(unavailable).toMatchObject({
+        selectedDate: '2025-04-05',
+        message: 'Game data unavailable',
+        diagnostic: {
+          code: 'InvalidGameData',
+          message: 'The schedule entry could not be mapped.',
+        },
+      })
     }),
   )
 
-  effectIt.effect('normalizes a malformed schedule payload into an application error', () =>
+  effectIt.effect('reports a failed schedule refresh as an application error', () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(
         MlbAdapter.mapScheduleForTest(selectedDate, { dates: 'invalid' }),

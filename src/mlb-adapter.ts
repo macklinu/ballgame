@@ -16,37 +16,37 @@ import * as Team from './Team'
 // Everything below this line is private to the MLB adapter. It is deliberately
 // not re-exported from the application-facing game or schedule contracts.
 const RawStatus = Schema.Struct({
-  codedGameState: Schema.NonEmptyString,
-  detailedState: Schema.NonEmptyString,
-  statusCode: Schema.NonEmptyString,
-  reason: Schema.OptionFromOptionalKey(Schema.NonEmptyString),
+  codedGameState: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
+  detailedState: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
+  statusCode: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
+  reason: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
 })
 
 const RawTeam = Schema.Struct({
   id: Schema.Int,
   name: Schema.NonEmptyString,
-  abbreviation: Schema.NonEmptyString,
-  shortName: Schema.NonEmptyString,
+  abbreviation: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
+  shortName: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
 })
 
 const RawTeamLine = Schema.Struct({
   team: RawTeam,
-  score: Schema.OptionFromOptionalKey(Schema.Int),
+  score: Schema.OptionFromOptionalNullOr(Schema.Int),
 })
 
 const RawGame = Schema.Struct({
   gamePk: Schema.Int,
-  gameType: Schema.NonEmptyString,
+  gameType: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
   gameDate: Schema.DateTimeUtcFromString,
   status: RawStatus,
   teams: Schema.Struct({
     away: RawTeamLine,
     home: RawTeamLine,
   }),
-  rescheduleDate: Schema.OptionFromOptionalKey(Schema.DateTimeUtcFromString),
-  rescheduleGameDate: Schema.OptionFromOptionalKey(Schema.NonEmptyString),
-  rescheduledFrom: Schema.OptionFromOptionalKey(Schema.DateTimeUtcFromString),
-  rescheduledFromDate: Schema.OptionFromOptionalKey(Schema.NonEmptyString),
+  rescheduleDate: Schema.OptionFromOptionalNullOr(Schema.DateTimeUtcFromString),
+  rescheduleGameDate: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
+  rescheduledFrom: Schema.OptionFromOptionalNullOr(Schema.DateTimeUtcFromString),
+  rescheduledFromDate: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
 })
 
 const RawScheduleResponse = Schema.Struct({
@@ -101,6 +101,8 @@ const makeReferences = (): References => {
   }
 }
 
+const optionOrEmpty = (value: Option.Option<string>): string => Option.getOrElse(value, () => '')
+
 const terminalState = (statusCode: string): Status.GameState => {
   if (statusCode.startsWith('CE')) {
     return 'CompletedEarly'
@@ -117,13 +119,16 @@ const terminalState = (statusCode: string): Status.GameState => {
 const gameState = (state: Status.GameState): Status.GameState => state
 
 const mapStatusState = (raw: typeof RawStatus.Type): Status.GameState =>
-  Match.value(raw.codedGameState).pipe(
-    Match.when('P', () => gameState(raw.statusCode === 'PW' ? 'Warmup' : 'Scheduled')),
+  Match.value(optionOrEmpty(raw.codedGameState)).pipe(
+    Match.when('P', () =>
+      gameState(optionOrEmpty(raw.statusCode) === 'PW' ? 'Warmup' : 'Scheduled'),
+    ),
     Match.when('I', () => {
-      if (raw.statusCode.startsWith('D')) {
+      const statusCode = optionOrEmpty(raw.statusCode)
+      if (statusCode.startsWith('D')) {
         return gameState('Delayed')
       }
-      if (raw.statusCode.startsWith('M') || raw.statusCode.startsWith('N')) {
+      if (statusCode.startsWith('M') || statusCode.startsWith('N')) {
         return gameState('UnderReview')
       }
       return gameState('Active')
@@ -131,7 +136,7 @@ const mapStatusState = (raw: typeof RawStatus.Type): Status.GameState =>
     Match.whenOr('U', 'T', () => gameState('Suspended')),
     Match.when('D', () => gameState('Postponed')),
     Match.when('C', () => gameState('Cancelled')),
-    Match.whenOr('F', 'O', () => terminalState(raw.statusCode)),
+    Match.whenOr('F', 'O', () => terminalState(optionOrEmpty(raw.statusCode))),
     Match.orElse(() => gameState('Unknown')),
   )
 
@@ -141,15 +146,19 @@ const mapStatusState = (raw: typeof RawStatus.Type): Status.GameState =>
  * as the safe Unknown domain state.
  */
 const mapStatus = (raw: typeof RawStatus.Type): Status.GameStatus => {
+  const state = mapStatusState(raw)
+
   return Status.GameStatus.make({
-    state: mapStatusState(raw),
-    label: raw.detailedState,
+    state,
+    label: Option.getOrElse(raw.detailedState, () => state),
     reason: raw.reason,
   })
 }
 
-const mapGameType = (raw: string): Game.GameType => {
-  switch (raw) {
+const mapGameType = (raw: Option.Option<string>): Game.GameType => {
+  const gameType = optionOrEmpty(raw)
+
+  switch (gameType) {
     case 'S':
       return 'SpringTraining'
     case 'E':
@@ -172,8 +181,8 @@ const mapTeam = (raw: typeof RawTeam.Type, references: References): Team.Team =>
   Team.Team.make({
     ref: references.team(raw.id),
     name: raw.name,
-    abbreviation: raw.abbreviation,
-    shortName: raw.shortName,
+    abbreviation: Option.getOrElse(raw.abbreviation, () => raw.name),
+    shortName: Option.getOrElse(raw.shortName, () => raw.name),
   })
 
 const scheduleDate = (value: string): Schedule.ScheduleDate => Schedule.ScheduleDate.make(value)
@@ -193,6 +202,10 @@ const unavailableOccurrence = (
   Schedule.UnavailableScheduleOccurrence.make({
     selectedDate,
     message: 'Game data unavailable',
+    diagnostic: Schedule.ScheduleOccurrenceDiagnostic.make({
+      code: 'InvalidGameData',
+      message: 'The schedule entry could not be mapped.',
+    }),
   })
 
 const scheduleUnavailable = (operation: string, cause: unknown) =>

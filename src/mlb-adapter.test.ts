@@ -381,7 +381,7 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect('retains usable games when one schedule entry is malformed', () =>
+  effectIt.effect('keeps the daily slate in the success channel when one game is malformed', () =>
     Effect.gen(function* () {
       const fixture: ScheduleFixture = {
         dates: [
@@ -409,14 +409,14 @@ describe('MLB adapter boundary', () => {
         selectedDate: '2025-04-05',
         message: 'Game data unavailable',
         diagnostic: {
-          code: 'InvalidGameData',
+          _tag: 'InvalidGameData',
           message: 'The schedule entry could not be mapped.',
         },
       })
     }),
   )
 
-  effectIt.effect('reports a failed schedule refresh as an application error', () =>
+  effectIt.effect('uses an application error only when the daily slate cannot be decoded', () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(
         MlbAdapter.mapScheduleForTest(selectedDate, { dates: 'invalid' }),

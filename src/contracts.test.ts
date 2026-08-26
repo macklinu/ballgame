@@ -131,8 +131,7 @@ describe('game contracts', () => {
         Schedule.UnavailableScheduleOccurrence.make({
           selectedDate: date,
           message: 'Game data unavailable',
-          diagnostic: Schedule.ScheduleOccurrenceDiagnostic.make({
-            code: 'InvalidGameData',
+          diagnostic: new Schedule.ScheduleOccurrenceDiagnostic({
             message: 'The schedule entry could not be mapped.',
           }),
         }),

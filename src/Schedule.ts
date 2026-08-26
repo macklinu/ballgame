@@ -22,12 +22,13 @@ export const AvailableScheduleOccurrence = Schema.TaggedStruct('Available', {
 })
 export type AvailableScheduleOccurrence = typeof AvailableScheduleOccurrence.Type
 
-/** A stable, application-owned explanation for an unavailable schedule row. */
-export const ScheduleOccurrenceDiagnostic = Schema.Struct({
-  code: Schema.Literal('InvalidGameData'),
-  message: Schema.NonEmptyString,
-})
-export type ScheduleOccurrenceDiagnostic = typeof ScheduleOccurrenceDiagnostic.Type
+/** A stable, application-owned diagnostic for an unavailable schedule row. */
+export class ScheduleOccurrenceDiagnostic extends Schema.TaggedError<ScheduleOccurrenceDiagnostic>()(
+  'InvalidGameData',
+  {
+    message: Schema.NonEmptyString,
+  },
+) {}
 
 export const UnavailableScheduleOccurrence = Schema.TaggedStruct('Unavailable', {
   selectedDate: ScheduleDate,

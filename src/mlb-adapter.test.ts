@@ -1,11 +1,16 @@
 import { it as effectIt } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import * as HttpClient from 'effect/unstable/http/HttpClient'
+import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
 import { describe, expect } from 'vitest'
 
 import * as Game from './Game'
 import * as MlbAdapter from './mlb-adapter'
+import * as MlbDto from './mlb-dto'
 import * as Schedule from './Schedule'
 
 const at = (value: string) => Schema.decodeSync(Schema.DateTimeUtcFromString)(value)
@@ -29,47 +34,12 @@ type ProviderGameScenario =
   | 'Cancelled'
   | 'Unknown'
 
-interface ProviderStatusFixture {
-  readonly codedGameState: string | null
-  readonly statusCode: string | null
-  readonly detailedState: string | null
-  readonly reason: string | null
-}
-
-interface LinescoreFixture {
-  readonly innings?: ReadonlyArray<{
-    readonly away?: { readonly runs?: number }
-    readonly home?: { readonly runs?: number }
-  }>
-}
-
-interface ProviderGameFixture {
-  readonly gamePk: number
-  readonly gameType?: string | null
-  readonly gameDate: string
-  readonly status: ProviderStatusFixture
-  readonly teams: {
-    readonly away: ProviderTeamLineFixture
-    readonly home: ProviderTeamLineFixture
-  }
-  readonly linescore?: LinescoreFixture | null
-  readonly rescheduleDate?: string | null
-  readonly rescheduleGameDate?: string | null
-  readonly rescheduledFrom?: string | null
-  readonly rescheduledFromDate?: string | null
-}
-
-interface ProviderTeamLineFixture {
-  readonly team: ProviderTeamFixture
-  readonly score?: number | null
-}
-
-interface ProviderTeamFixture {
-  readonly id: number
-  readonly name: string
-  readonly abbreviation?: string | null
-  readonly shortName?: string | null
-}
+type ProviderStatusFixture = typeof MlbDto.Status.Encoded
+type ProviderGameFixture = typeof MlbDto.Game.Encoded
+type ProviderGameFeedFixture = typeof MlbDto.GameFeed.Encoded
+type ProviderLinescoreFixture = typeof MlbDto.Linescore.Encoded
+type ProviderBoxscoreFixture = typeof MlbDto.Boxscore.Encoded
+type ProviderProbablePitchersFixture = typeof MlbDto.ProbablePitchers.Encoded
 
 const providerStatuses = {
   Scheduled: { codedGameState: 'P', statusCode: 'S', detailedState: 'Scheduled', reason: null },
@@ -149,7 +119,7 @@ const allStarFinalWithRainDelay = (): ProviderGameFixture => {
   }
 }
 
-const futureGameWithPartialMetadata = (): ProviderGameFixture => {
+const futureGameWithPartialScheduleMetadata = (): ProviderGameFixture => {
   const game = scheduledGame()
 
   return {
@@ -168,7 +138,6 @@ const futureGameWithPartialMetadata = (): ProviderGameFixture => {
         team: { ...game.teams.home.team, abbreviation: null, shortName: null },
       },
     },
-    linescore: { innings: [{ home: { runs: 1 } }] },
     rescheduleDate: null,
     rescheduledFromDate: null,
   }
@@ -211,6 +180,170 @@ const malformedGame = (): unknown => ({ gamePk: 'not-a-number' })
 
 const malformedDailySlate = (): unknown => ({ dates: 'invalid' })
 
+const fullGameFeed = (
+  options: {
+    readonly status?: ProviderStatusFixture
+    readonly feedGamePk?: number
+    readonly gameDataPk?: number
+  } = {},
+): ProviderGameFeedFixture => {
+  const { status = providerStatuses.Final, feedGamePk = 778443, gameDataPk = 778443 } = options
+
+  return {
+    gamePk: feedGamePk,
+    gameData: {
+      game: { pk: gameDataPk, type: 'R' },
+      datetime: { dateTime: '2025-04-05T20:10:00Z' },
+      status,
+      teams: {
+        away: { id: 1, name: 'Away Club', abbreviation: 'AWY', shortName: 'Away' },
+        home: { id: 2, name: 'Home Club', abbreviation: 'HME', shortName: 'Home' },
+      },
+      probablePitchers: {
+        away: { id: 41, fullName: 'Away Starter' },
+        home: { id: 42, fullName: 'Home Starter' },
+      } satisfies ProviderProbablePitchersFixture,
+    },
+    liveData: {
+      linescore: {
+        scheduledInnings: 9,
+        currentInning: 9,
+        inningHalf: 'Bottom',
+        teams: {
+          away: { runs: 3, hits: 8, errors: 1, leftOnBase: 5 },
+          home: { runs: 5, hits: 9, errors: 0, leftOnBase: 7 },
+        },
+        innings: [
+          {
+            num: 1,
+            away: { runs: 1, hits: 2, errors: 0, leftOnBase: 1 },
+            home: { runs: 0, hits: 1, errors: 0, leftOnBase: 2 },
+          },
+        ],
+      } satisfies ProviderLinescoreFixture,
+      boxscore: {
+        teams: {
+          away: {
+            players: {
+              ID31: {
+                person: { id: 31, fullName: 'Away Batter' },
+                position: { abbreviation: 'CF' },
+                battingOrder: '100',
+                stats: {
+                  batting: {
+                    atBats: 4,
+                    runs: 1,
+                    hits: 2,
+                    doubles: 1,
+                    triples: 0,
+                    homeRuns: 0,
+                    rbi: 1,
+                    baseOnBalls: 0,
+                    strikeOuts: 1,
+                    avg: '.250',
+                  },
+                },
+              },
+              ID32: {
+                person: { id: 32, fullName: 'Away Pitcher' },
+                position: { abbreviation: 'P' },
+                stats: {
+                  pitching: {
+                    inningsPitched: '6.0',
+                    hits: 5,
+                    runs: 2,
+                    earnedRuns: 2,
+                    baseOnBalls: 1,
+                    strikeOuts: 7,
+                    homeRuns: 1,
+                    era: '3.00',
+                  },
+                },
+              },
+            },
+            batters: [31],
+            pitchers: [32],
+          },
+          home: {
+            players: {
+              ID51: {
+                person: { id: 51, fullName: 'Home Batter' },
+                position: { abbreviation: '1B' },
+                battingOrder: '300',
+                stats: {
+                  batting: {
+                    atBats: 4,
+                    runs: 2,
+                    hits: 3,
+                    doubles: 0,
+                    triples: 0,
+                    homeRuns: 1,
+                    rbi: 3,
+                    baseOnBalls: 1,
+                    strikeOuts: 0,
+                    avg: '.300',
+                  },
+                },
+              },
+            },
+            batters: [51],
+            pitchers: [],
+          },
+        },
+      } satisfies ProviderBoxscoreFixture,
+    },
+  }
+}
+
+const makeLiveAdapter = (schedule: ProviderGameFixture, feedBody: string) => {
+  const requestedUrls: Array<string> = []
+  const client = HttpClient.make((request) => {
+    requestedUrls.push(request.url)
+    const body = request.url.endsWith('/schedule')
+      ? JSON.stringify({ dates: [{ games: [schedule] }] })
+      : feedBody
+
+    return Effect.succeed(
+      HttpClientResponse.fromWeb(
+        request,
+        new Response(body, { headers: { 'content-type': 'application/json' } }),
+      ),
+    )
+  })
+
+  return {
+    layer: MlbAdapter.layerLive.pipe(Layer.provide(Layer.succeed(HttpClient.HttpClient, client))),
+    requestedUrls,
+  }
+}
+
+const getSelectedOverview = Effect.fn('MlbAdapterTest.getSelectedOverview')(function* () {
+  const scheduleService = yield* Schedule.ScheduleService
+  const gameService = yield* Game.GameService
+  const schedule = yield* scheduleService.get(selectedDate)
+  const occurrence = asAvailable(schedule)
+
+  return yield* gameService.get(occurrence.game.ref)
+})
+
+const expectGameUnavailable = (
+  failure: Game.GameNotFound | Game.GameUnavailable | Schedule.ScheduleUnavailable,
+  operation: string,
+): void =>
+  Match.value(failure).pipe(
+    Match.tagsExhaustive({
+      GameNotFound: () => {
+        throw new Error('Expected GameUnavailable, received GameNotFound')
+      },
+      GameUnavailable: (error) => {
+        expect(error.operation).toBe(operation)
+      },
+      ScheduleUnavailable: () => {
+        throw new Error('Expected GameUnavailable, received ScheduleUnavailable')
+      },
+    }),
+  )
+
 const asAvailable = (schedule: Schedule.Schedule): Schedule.AvailableScheduleOccurrence => {
   const occurrence = schedule.occurrences[0]
   if (occurrence === undefined || !Schedule.isAvailableScheduleOccurrence(occurrence)) {
@@ -241,10 +374,6 @@ describe('MLB adapter boundary', () => {
       })
       expect(Option.getOrThrow(game.score)).toEqual({ away: 3, home: 5 })
       expect(Option.getOrThrow(game.status.reason)).toBe('Rain delay')
-      expect(String(game.ref)).not.toBe(String(input.gamePk))
-      expect(game).not.toHaveProperty('gamePk')
-      expect(game.awayTeam).not.toHaveProperty('id')
-      expect(game.homeTeam).not.toHaveProperty('id')
     })
   })
 
@@ -359,9 +488,9 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect('keeps a future game when optional metadata and linescore data are partial', () =>
+  effectIt.effect('keeps a future game when optional schedule metadata is partial', () =>
     Effect.gen(function* () {
-      const occurrence = yield* mapAvailable(futureGameWithPartialMetadata())
+      const occurrence = yield* mapAvailable(futureGameWithPartialScheduleMetadata())
 
       expect(occurrence.game).toMatchObject({
         type: 'Other',
@@ -435,4 +564,173 @@ describe('MLB adapter boundary', () => {
       expect(failure.operation).toBe('MlbSchedule.decode')
     }),
   )
+
+  effectIt.effect(
+    'fetches a normalized overview with linescore, starters, lineup, and standard boxscore',
+    () => {
+      const adapter = makeLiveAdapter(finalGame(), JSON.stringify(fullGameFeed()))
+
+      return Effect.gen(function* () {
+        const overview = yield* getSelectedOverview().pipe(Effect.provide(adapter.layer))
+        const linescore = Option.getOrThrow(overview.linescore)
+        const lineups = Option.getOrThrow(overview.lineups)
+        const boxscore = Option.getOrThrow(overview.boxscore)
+
+        expect(overview.game).toMatchObject({
+          type: 'RegularSeason',
+          status: { state: 'Final', label: 'Final' },
+          awayTeam: { name: 'Away Club', abbreviation: 'AWY' },
+          homeTeam: { name: 'Home Club', abbreviation: 'HME' },
+        })
+        expect(Option.getOrThrow(overview.game.score)).toEqual({ away: 3, home: 5 })
+        expect(linescore).toMatchObject({
+          scheduledInnings: Option.some(9),
+          currentInning: Option.some(9),
+          inningHalf: Option.some('Bottom'),
+          away: { runs: Option.some(3), hits: Option.some(8) },
+          home: { runs: Option.some(5), hits: Option.some(9) },
+        })
+        expect(linescore.innings).toEqual([
+          {
+            number: 1,
+            away: {
+              runs: Option.some(1),
+              hits: Option.some(2),
+              errors: Option.some(0),
+              leftOnBase: Option.some(1),
+            },
+            home: {
+              runs: Option.some(0),
+              hits: Option.some(1),
+              errors: Option.some(0),
+              leftOnBase: Option.some(2),
+            },
+          },
+        ])
+        expect(Option.getOrThrow(overview.probablePitchers.away)).toMatchObject({
+          name: 'Away Starter',
+        })
+        expect(lineups.away).toMatchObject([
+          {
+            player: { name: 'Away Batter', position: Option.some('CF') },
+            battingOrder: Option.some(1),
+          },
+        ])
+        expect(boxscore.away.batting).toMatchObject([
+          {
+            player: { name: 'Away Batter' },
+            stats: { atBats: Option.some(4), hits: Option.some(2), average: Option.some('.250') },
+          },
+        ])
+        expect(boxscore.away.pitching).toMatchObject([
+          {
+            player: { name: 'Away Pitcher' },
+            stats: { inningsPitched: Option.some('6.0'), strikeOuts: Option.some(7) },
+          },
+        ])
+        expect(adapter.requestedUrls).toHaveLength(2)
+        expect(adapter.requestedUrls[1]).toContain('/feed/live')
+      })
+    },
+  )
+
+  effectIt.effect('retains partial live linescore data without inventing missing values', () => {
+    const partialLinescore: ProviderLinescoreFixture = {
+      teams: { away: { runs: 3 } },
+    }
+    const feed = fullGameFeed()
+    const partialFeed: ProviderGameFeedFixture = {
+      ...feed,
+      liveData: { linescore: partialLinescore, boxscore: null },
+    }
+    const adapter = makeLiveAdapter(finalGame(), JSON.stringify(partialFeed))
+
+    return Effect.gen(function* () {
+      const overview = yield* getSelectedOverview().pipe(Effect.provide(adapter.layer))
+      const linescore = Option.getOrThrow(overview.linescore)
+
+      expect(linescore).toEqual({
+        scheduledInnings: Option.none(),
+        currentInning: Option.none(),
+        inningHalf: Option.none(),
+        away: {
+          runs: Option.some(3),
+          hits: Option.none(),
+          errors: Option.none(),
+          leftOnBase: Option.none(),
+        },
+        home: {
+          runs: Option.none(),
+          hits: Option.none(),
+          errors: Option.none(),
+          leftOnBase: Option.none(),
+        },
+        innings: [],
+      })
+      expect(overview.game.score).toEqual(Option.none())
+    })
+  })
+
+  effectIt.effect('keeps a cancelled game useful without inventing a score or boxscore', () => {
+    const cancelledStatus: ProviderStatusFixture = {
+      ...providerStatuses.Cancelled,
+      reason: 'Rain',
+    }
+    const feed = fullGameFeed({ status: cancelledStatus })
+    const cancelledFeed = {
+      ...feed,
+      gameData: {
+        ...feed.gameData,
+        probablePitchers: { away: { id: 41, fullName: 'Away Starter' } },
+      },
+      liveData: { linescore: null, boxscore: null },
+    }
+    const adapter = makeLiveAdapter(
+      gameWithProviderState('Cancelled'),
+      JSON.stringify(cancelledFeed),
+    )
+
+    return Effect.gen(function* () {
+      const overview = yield* getSelectedOverview().pipe(Effect.provide(adapter.layer))
+
+      expect(overview.game).toMatchObject({
+        startsAt: at('2025-04-05T20:10:00Z'),
+        awayTeam: { name: 'Away Club' },
+        homeTeam: { name: 'Home Club' },
+        status: { state: 'Cancelled', label: 'Cancelled', reason: Option.some('Rain') },
+      })
+      expect(overview.game.score).toEqual(Option.none())
+      expect(overview.linescore).toEqual(Option.none())
+      expect(overview.lineups).toEqual(Option.none())
+      expect(overview.boxscore).toEqual(Option.none())
+      expect(Option.getOrThrow(overview.probablePitchers.away)).toMatchObject({
+        name: 'Away Starter',
+      })
+      expect(overview.probablePitchers.home).toEqual(Option.none())
+    })
+  })
+
+  effectIt.effect('rejects a successful response for another game', () => {
+    const adapter = makeLiveAdapter(
+      scheduledGame(),
+      JSON.stringify(fullGameFeed({ feedGamePk: 999999, gameDataPk: 999999 })),
+    )
+
+    return Effect.gen(function* () {
+      const failure = yield* Effect.flip(getSelectedOverview().pipe(Effect.provide(adapter.layer)))
+
+      expectGameUnavailable(failure, 'GameOverview.validate')
+    })
+  })
+
+  effectIt.effect('rejects a malformed successful feed that lacks meaningful game metadata', () => {
+    const malformedFeed: unknown = { gamePk: 778443, gameData: {}, liveData: {} }
+    const adapter = makeLiveAdapter(scheduledGame(), JSON.stringify(malformedFeed))
+
+    return Effect.gen(function* () {
+      const failure = yield* Effect.flip(getSelectedOverview().pipe(Effect.provide(adapter.layer)))
+
+      expectGameUnavailable(failure, 'GameOverview.fetch')
+    })
+  })
 })

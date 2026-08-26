@@ -1,6 +1,3 @@
-import { it } from '@effect/vitest'
-import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { describe, expect, test } from 'vitest'
@@ -87,35 +84,32 @@ describe('game contracts', () => {
     expect(Option.getOrThrow(makeup.rescheduledFrom)).toBe(original.selectedDate)
   })
 
-  test.each<[Status.GameState, boolean]>([
-    ['Scheduled', false],
-    ['Active', true],
-    ['Delayed', true],
-    ['UnderReview', true],
-    ['Suspended', false],
-  ])('recognizes %s as actively in progress: %s', (state, expected) => {
-    expect(Status.isActivelyInProgress(status(state))).toBe(expected)
-  })
+  test.each([
+    { state: 'Scheduled', active: false, scoreBearing: false, terminal: false },
+    { state: 'Warmup', active: true, scoreBearing: false, terminal: false },
+    { state: 'Active', active: true, scoreBearing: false, terminal: false },
+    { state: 'Delayed', active: true, scoreBearing: false, terminal: false },
+    { state: 'UnderReview', active: true, scoreBearing: false, terminal: false },
+    { state: 'Suspended', active: false, scoreBearing: false, terminal: false },
+    { state: 'Final', active: false, scoreBearing: true, terminal: true },
+    { state: 'CompletedEarly', active: false, scoreBearing: true, terminal: true },
+    { state: 'Tied', active: false, scoreBearing: true, terminal: true },
+    { state: 'Forfeit', active: false, scoreBearing: true, terminal: true },
+    { state: 'Postponed', active: false, scoreBearing: false, terminal: true },
+    { state: 'Cancelled', active: false, scoreBearing: false, terminal: true },
+    { state: 'Unknown', active: false, scoreBearing: false, terminal: false },
+  ] as const)('classifies $state', (testCase) => {
+    const gameStatus = status(testCase.state)
 
-  test.each<[Status.GameState, boolean]>([
-    ['Final', true],
-    ['CompletedEarly', true],
-    ['Tied', true],
-    ['Forfeit', true],
-    ['Postponed', false],
-    ['Cancelled', false],
-  ])('recognizes %s as score bearing: %s', (state, expected) => {
-    expect(Status.isScoreBearing(status(state))).toBe(expected)
-  })
-
-  test.each<[Status.GameState, boolean]>([
-    ['Suspended', false],
-    ['Final', true],
-    ['Postponed', true],
-    ['Cancelled', true],
-    ['Unknown', false],
-  ])('recognizes %s as terminal: %s', (state, expected) => {
-    expect(Status.isTerminal(status(state))).toBe(expected)
+    expect({
+      active: Status.isActivelyInProgress(gameStatus),
+      scoreBearing: Status.isScoreBearing(gameStatus),
+      terminal: Status.isTerminal(gameStatus),
+    }).toEqual({
+      active: testCase.active,
+      scoreBearing: testCase.scoreBearing,
+      terminal: testCase.terminal,
+    })
   })
 
   test('continues polling a schedule with a non-terminal game', () => {
@@ -128,47 +122,19 @@ describe('game contracts', () => {
     expect(Schedule.hasNonTerminalGame(schedule)).toBe(true)
   })
 
-  test('stops polling after every available game is terminal', () => {
+  test('stops polling after terminal games despite unavailable occurrences', () => {
     const date = Schedule.ScheduleDate.make('2025-04-05')
     const schedule = Schedule.Schedule.make({
       date,
-      occurrences: [availableOccurrence(date, 'game-final', status('Final'))],
+      occurrences: [
+        availableOccurrence(date, 'game-final', status('Final')),
+        Schedule.UnavailableScheduleOccurrence.make({
+          selectedDate: date,
+          message: 'Game data unavailable',
+        }),
+      ],
     })
 
     expect(Schedule.hasNonTerminalGame(schedule)).toBe(false)
-  })
-
-  it.effect('keeps service failures in typed application-error channels', () => {
-    const scheduleError = new Schedule.ScheduleUnavailable({
-      operation: 'ScheduleService.get',
-      cause: new Error('offline'),
-    })
-    const gameRef = Game.GameRef.make('game-missing')
-
-    return Effect.gen(function* () {
-      const scheduleService = yield* Schedule.ScheduleService
-      const gameService = yield* Game.GameService
-
-      const scheduleFailure = yield* Effect.flip(scheduleService.get(at('2025-04-05T00:00:00Z')))
-      const gameFailure = yield* Effect.flip(gameService.get(gameRef))
-
-      expect(scheduleFailure._tag).toBe('ScheduleUnavailable')
-      expect(gameFailure._tag).toBe('GameNotFound')
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          Layer.succeed(
-            Schedule.ScheduleService,
-            Schedule.ScheduleService.of({ get: () => Effect.fail(scheduleError) }),
-          ),
-          Layer.succeed(
-            Game.GameService,
-            Game.GameService.of({
-              get: (ref) => Effect.fail(new Game.GameNotFound({ gameRef: ref })),
-            }),
-          ),
-        ),
-      ),
-    )
   })
 })

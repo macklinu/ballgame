@@ -6,6 +6,10 @@ Run `oxlint` and `oxfmt` with `--disable-nested-config`. Do not allow nested too
 
 Follow the project-scoped `.agents/skills/nub/SKILL.md`.
 
+# Runtime
+
+`.node-version` pins Node for OpenTUI FFI. Run the app with `nub run dev`; do not set `DEV=true`, which enables a React DevTools backend incompatible with Node.
+
 # Documentation
 
 Keep documentation concise and scoped to the ticket. Record only reader-facing operational information; link to existing sources instead of adding implementation or recovery narrative.

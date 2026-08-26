@@ -8,7 +8,7 @@ Concise record of delivery decisions and repeatable blockers. GitHub issues rema
 - Use atomic PRs. Stack only a true linear dependency; independent children share a parent rather than creating a false chain.
 - #2 owns vendor relocation; #3 owns provenance and the refresh guide.
 - Adopting Nub includes its generated lockfile and direct Nub-based validation; do not retain a previous package-manager lockfile without an explicit compatibility reason.
-- CI uses the project-pinned Nub and does not invent a separate Node version policy.
+- Nub runs the app and tests on project-pinned Node 26.4.0 for OpenTUI FFI; `DEV=true` remains off because its React DevTools backend is Node-incompatible.
 - The MLB adapter keeps provider DTOs, numeric identifiers, endpoints, and transport errors private; application code receives normalized records and tagged errors.
 - Merge preference is squash, then rebase, then merge commit. Native Git subtree imports require a merge commit because their two-parent history is functional metadata.
 

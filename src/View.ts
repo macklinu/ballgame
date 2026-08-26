@@ -6,9 +6,11 @@ import * as Option from 'effect/Option'
 import * as Atom from 'effect/unstable/reactivity/Atom'
 import { useCallback } from 'react'
 
+import type * as Schedule from './Schedule'
+
 export type View = Data.TaggedEnum<{
   Schedule: {}
-  GameDetails: Readonly<{ gamePk: number }>
+  GameDetails: Readonly<{ occurrence: Schedule.AvailableScheduleOccurrence }>
 }>
 export const View = Data.taggedEnum<View>()
 

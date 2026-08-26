@@ -1,10 +1,22 @@
 import * as Schema from 'effect/Schema'
-import * as Model from 'effect/unstable/schema/Model'
-export class Team extends Schema.Class<Team>('Team')({
-  id: Schema.Number.pipe(Schema.brand('TeamId')),
-  name: Schema.String,
-  abbreviation: Schema.String,
-  shortName: Schema.String,
-  link: Schema.String,
-  score: Model.optionalOption(Schema.Number),
-}) {}
+
+/**
+ * A Ballgame-owned team reference. The MLB adapter assigns these references;
+ * provider identifiers never leave that boundary.
+ */
+export const TeamRef = Schema.String.pipe(Schema.brand('TeamRef'))
+export type TeamRef = typeof TeamRef.Type
+
+export interface Team {
+  readonly ref: TeamRef
+  readonly name: string
+  readonly abbreviation: string
+  readonly shortName: string
+}
+
+export const Team = Schema.Struct({
+  ref: TeamRef,
+  name: Schema.NonEmptyString,
+  abbreviation: Schema.NonEmptyString,
+  shortName: Schema.NonEmptyString,
+})

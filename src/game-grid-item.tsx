@@ -23,15 +23,18 @@ export const GameGridItem = ({ game, isSelected, ...props }: Props) => {
           <text>{game.awayTeam.abbreviation}</text>
           <text>{game.homeTeam.abbreviation}</text>
         </box>
-        {Game.hasStarted(game) && (
-          <box flexDirection='column'>
-            <text>{Game.awayTeamScore(game).pipe(Option.getOrElse(() => 0))}</text>
-            <text>{Game.homeTeamScore(game).pipe(Option.getOrElse(() => 0))}</text>
-          </box>
-        )}
+        {Option.match(game.score, {
+          onNone: () => null,
+          onSome: (score) => (
+            <box flexDirection='column'>
+              <text>{score.away}</text>
+              <text>{score.home}</text>
+            </box>
+          ),
+        })}
       </box>
       <box>
-        <text>{Game.currentTime(game)}</text>
+        <text>{game.status.label}</text>
       </box>
     </box>
   )

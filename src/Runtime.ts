@@ -1,8 +1,6 @@
-import * as ManagedRuntime from 'effect/ManagedRuntime'
 import * as Atom from 'effect/unstable/reactivity/Atom'
 
 import * as Layers from './Layers'
 
-export const Runtime = ManagedRuntime.make(Layers.all)
-
-export const defaultAtomRuntime = Atom.runtime(Layers.all)
+/** The only Effect Atom runtime used by the interactive application. */
+export const appAtomRuntime = Atom.runtime(Layers.appLayer)

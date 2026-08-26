@@ -1,13 +1,7 @@
-import * as BunFileSystem from '@effect/platform-bun/BunFileSystem'
 import * as Layer from 'effect/Layer'
-import * as Logger from 'effect/Logger'
-import * as References from 'effect/References'
+import * as FetchHttpClient from 'effect/unstable/http/FetchHttpClient'
 
-const FileLoggerLive = Logger.layer([
-  Logger.toFile(Logger.formatJson, 'debug.log', { batchWindow: 500 }),
-]).pipe(Layer.provide(BunFileSystem.layer))
+import * as Mlb from './mlb-adapter'
 
-export const all = Layer.mergeAll(
-  FileLoggerLive,
-  Layer.succeed(References.MinimumLogLevel, 'Debug'),
-)
+/** The single live composition boundary keeps provider details behind #5's services. */
+export const appLayer = Mlb.layerLive.pipe(Layer.provide(FetchHttpClient.layer))

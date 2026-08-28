@@ -9,65 +9,23 @@ import * as HttpClient from 'effect/unstable/http/HttpClient'
 import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
 
 import * as Game from './Game'
+import * as MlbDto from './mlb-dto'
 import * as Schedule from './Schedule'
 import * as Status from './Status'
 import * as Team from './Team'
 
-// Everything below this line is private to the MLB adapter. It is deliberately
-// not re-exported from the application-facing game or schedule contracts.
-const RawStatus = Schema.Struct({
-  codedGameState: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-  detailedState: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-  statusCode: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-  reason: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-})
-
-const RawTeam = Schema.Struct({
-  id: Schema.Int,
-  name: Schema.NonEmptyString,
-  abbreviation: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-  shortName: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-})
-
-const RawTeamLine = Schema.Struct({
-  team: RawTeam,
-  score: Schema.OptionFromOptionalNullOr(Schema.Int),
-})
-
-const RawGame = Schema.Struct({
-  gamePk: Schema.Int,
-  gameType: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-  gameDate: Schema.DateTimeUtcFromString,
-  status: RawStatus,
-  teams: Schema.Struct({
-    away: RawTeamLine,
-    home: RawTeamLine,
-  }),
-  rescheduleDate: Schema.OptionFromOptionalNullOr(Schema.DateTimeUtcFromString),
-  rescheduleGameDate: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-  rescheduledFrom: Schema.OptionFromOptionalNullOr(Schema.DateTimeUtcFromString),
-  rescheduledFromDate: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
-})
-
-const RawScheduleResponse = Schema.Struct({
-  dates: Schema.Array(
-    Schema.Struct({
-      games: Schema.Array(Schema.Unknown),
-    }),
-  ),
-})
-
 interface References {
   readonly game: (gamePk: number) => Game.GameRef
   readonly team: (teamId: number) => Team.TeamRef
-  readonly remember: (game: Game.Game) => void
-  readonly findGame: (gameRef: Game.GameRef) => Option.Option<Game.Game>
+  readonly player: (playerId: number) => Game.PlayerRef
+  readonly findGamePk: (gameRef: Game.GameRef) => Option.Option<number>
 }
 
 const makeReferences = (): References => {
   const gameRefs = new Map<number, Game.GameRef>()
   const teamRefs = new Map<number, Team.TeamRef>()
-  const games = new Map<Game.GameRef, Game.Game>()
+  const playerRefs = new Map<number, Game.PlayerRef>()
+  const gamePks = new Map<Game.GameRef, number>()
 
   const nextGameRef = (gamePk: number): Game.GameRef => {
     const existing = gameRefs.get(gamePk)
@@ -77,6 +35,7 @@ const makeReferences = (): References => {
 
     const ref = Game.GameRef.make(`game-${gameRefs.size + 1}`)
     gameRefs.set(gamePk, ref)
+    gamePks.set(ref, gamePk)
     return ref
   }
 
@@ -91,13 +50,22 @@ const makeReferences = (): References => {
     return ref
   }
 
+  const nextPlayerRef = (playerId: number): Game.PlayerRef => {
+    const existing = playerRefs.get(playerId)
+    if (existing !== undefined) {
+      return existing
+    }
+
+    const ref = Game.PlayerRef.make(`player-${playerRefs.size + 1}`)
+    playerRefs.set(playerId, ref)
+    return ref
+  }
+
   return {
     game: nextGameRef,
     team: nextTeamRef,
-    remember: (game) => {
-      games.set(game.ref, game)
-    },
-    findGame: (gameRef) => Option.fromUndefinedOr(games.get(gameRef)),
+    player: nextPlayerRef,
+    findGamePk: (gameRef) => Option.fromUndefinedOr(gamePks.get(gameRef)),
   }
 }
 
@@ -118,7 +86,7 @@ const terminalState = (statusCode: string): Status.GameState => {
 
 const gameState = (state: Status.GameState): Status.GameState => state
 
-const mapStatusState = (raw: typeof RawStatus.Type): Status.GameState =>
+const mapStatusState = (raw: MlbDto.Status): Status.GameState =>
   Match.value(optionOrEmpty(raw.codedGameState)).pipe(
     Match.when('P', () =>
       gameState(optionOrEmpty(raw.statusCode) === 'PW' ? 'Warmup' : 'Scheduled'),
@@ -145,7 +113,7 @@ const mapStatusState = (raw: typeof RawStatus.Type): Status.GameState =>
  * control flow. Unrecognised or contradictory provider values remain visible
  * as the safe Unknown domain state.
  */
-const mapStatus = (raw: typeof RawStatus.Type): Status.GameStatus => {
+const mapStatus = (raw: MlbDto.Status): Status.GameStatus => {
   const state = mapStatusState(raw)
 
   return Status.GameStatus.make({
@@ -177,13 +145,350 @@ const mapGameType = (raw: Option.Option<string>): Game.GameType => {
   }
 }
 
-const mapTeam = (raw: typeof RawTeam.Type, references: References): Team.Team =>
+const mapTeam = (raw: MlbDto.Team, references: References): Team.Team =>
   Team.Team.make({
     ref: references.team(raw.id),
     name: raw.name,
     abbreviation: Option.getOrElse(raw.abbreviation, () => raw.name),
     shortName: Option.getOrElse(raw.shortName, () => raw.name),
   })
+
+const emptyTeamLinescore = (): Game.TeamLinescore =>
+  Game.TeamLinescore.make({
+    runs: Option.none(),
+    hits: Option.none(),
+    errors: Option.none(),
+    leftOnBase: Option.none(),
+  })
+
+const mapTeamLinescore = (raw: Option.Option<MlbDto.LinescoreTeam>): Game.TeamLinescore =>
+  raw.pipe(
+    Option.match({
+      onNone: emptyTeamLinescore,
+      onSome: (value) =>
+        Game.TeamLinescore.make({
+          runs: value.runs,
+          hits: value.hits,
+          errors: value.errors,
+          leftOnBase: value.leftOnBase,
+        }),
+    }),
+  )
+
+const mapLinescore = (raw: MlbDto.Linescore): Game.Linescore => {
+  const teams = raw.teams.pipe(
+    Option.match({
+      onNone: () => ({ away: emptyTeamLinescore(), home: emptyTeamLinescore() }),
+      onSome: (value) => ({
+        away: mapTeamLinescore(value.away),
+        home: mapTeamLinescore(value.home),
+      }),
+    }),
+  )
+  const inningHalf = raw.inningHalf.pipe(
+    Option.filter((value): value is 'Top' | 'Bottom' => value === 'Top' || value === 'Bottom'),
+  )
+  const innings = raw.innings.pipe(
+    Option.getOrElse((): ReadonlyArray<MlbDto.InningLinescore> => []),
+    (values) =>
+      values.map((inning) =>
+        Game.InningLinescore.make({
+          number: inning.num,
+          away: mapTeamLinescore(inning.away),
+          home: mapTeamLinescore(inning.home),
+        }),
+      ),
+  )
+
+  return Game.Linescore.make({
+    scheduledInnings: raw.scheduledInnings,
+    currentInning: raw.currentInning,
+    inningHalf,
+    away: teams.away,
+    home: teams.home,
+    innings,
+  })
+}
+
+const mapPlayer = (
+  person: MlbDto.Person,
+  position: Option.Option<MlbDto.Position>,
+  references: References,
+): Game.Player =>
+  Game.Player.make({
+    ref: references.player(person.id),
+    name: person.fullName,
+    position: position.pipe(Option.map((value) => value.abbreviation)),
+  })
+
+const mapBattingLine = (raw: MlbDto.BattingLine): Game.BattingLine =>
+  Game.BattingLine.make({
+    atBats: raw.atBats,
+    runs: raw.runs,
+    hits: raw.hits,
+    doubles: raw.doubles,
+    triples: raw.triples,
+    homeRuns: raw.homeRuns,
+    runsBattedIn: raw.rbi,
+    walks: raw.baseOnBalls,
+    strikeOuts: raw.strikeOuts,
+    average: raw.avg,
+  })
+
+const mapPitchingLine = (raw: MlbDto.PitchingLine): Game.PitchingLine =>
+  Game.PitchingLine.make({
+    inningsPitched: raw.inningsPitched,
+    hits: raw.hits,
+    runs: raw.runs,
+    earnedRuns: raw.earnedRuns,
+    walks: raw.baseOnBalls,
+    strikeOuts: raw.strikeOuts,
+    homeRuns: raw.homeRuns,
+    earnedRunAverage: raw.era,
+  })
+
+const hasBattingData = (stats: MlbDto.BattingLine): boolean =>
+  Option.isSome(stats.atBats) ||
+  Option.isSome(stats.runs) ||
+  Option.isSome(stats.hits) ||
+  Option.isSome(stats.doubles) ||
+  Option.isSome(stats.triples) ||
+  Option.isSome(stats.homeRuns) ||
+  Option.isSome(stats.rbi) ||
+  Option.isSome(stats.baseOnBalls) ||
+  Option.isSome(stats.strikeOuts) ||
+  Option.isSome(stats.avg)
+
+const hasPitchingData = (stats: MlbDto.PitchingLine): boolean =>
+  Option.isSome(stats.inningsPitched) ||
+  Option.isSome(stats.hits) ||
+  Option.isSome(stats.runs) ||
+  Option.isSome(stats.earnedRuns) ||
+  Option.isSome(stats.baseOnBalls) ||
+  Option.isSome(stats.strikeOuts) ||
+  Option.isSome(stats.homeRuns) ||
+  Option.isSome(stats.era)
+
+const battingOrder = (raw: Option.Option<string>): Option.Option<number> =>
+  raw.pipe(
+    Option.flatMap((value) => {
+      const parsed = Number.parseInt(value, 10)
+      const order = Math.floor(parsed / 100)
+      return Number.isSafeInteger(order) && order > 0 ? Option.some(order) : Option.none()
+    }),
+  )
+
+const rawTeamPlayers = (raw: MlbDto.BoxscoreTeam): ReadonlyArray<MlbDto.BoxscorePlayer> =>
+  raw.players.pipe(
+    Option.map((players) => Object.values(players)),
+    Option.getOrElse((): ReadonlyArray<MlbDto.BoxscorePlayer> => []),
+  )
+
+const mapLineup = (
+  raw: MlbDto.BoxscoreTeam,
+  references: References,
+): ReadonlyArray<Game.LineupPlayer> => {
+  const players = rawTeamPlayers(raw)
+  const playerById = new Map(players.map((player) => [player.person.id, player]))
+  const orderedPlayers = players.filter((player) =>
+    Option.isSome(battingOrder(player.battingOrder)),
+  )
+  const listedPlayers = raw.batters.pipe(
+    Option.map((batters) =>
+      batters.flatMap((playerId) => {
+        const player = playerById.get(playerId)
+        return player === undefined ? [] : [player]
+      }),
+    ),
+    Option.getOrElse((): ReadonlyArray<MlbDto.BoxscorePlayer> => []),
+  )
+  const selectedPlayers = listedPlayers.length > 0 ? listedPlayers : orderedPlayers
+
+  return selectedPlayers.map((player) =>
+    Game.LineupPlayer.make({
+      player: mapPlayer(player.person, player.position, references),
+      battingOrder: battingOrder(player.battingOrder),
+    }),
+  )
+}
+
+const mapTeamBoxscore = (raw: Option.Option<MlbDto.BoxscoreTeam>, references: References) =>
+  raw.pipe(
+    Option.match({
+      onNone: () => ({
+        lineup: [],
+        boxscore: Game.TeamBoxscore.make({ batting: [], pitching: [] }),
+      }),
+      onSome: (team) => {
+        const players = rawTeamPlayers(team)
+        const batting = players.flatMap((player) =>
+          player.stats.pipe(
+            Option.flatMap((stats) => stats.batting),
+            Option.filter(hasBattingData),
+            Option.match({
+              onNone: () => [],
+              onSome: (stats) => [
+                Game.BattingBoxscoreLine.make({
+                  player: mapPlayer(player.person, player.position, references),
+                  stats: mapBattingLine(stats),
+                }),
+              ],
+            }),
+          ),
+        )
+        const pitching = players.flatMap((player) =>
+          player.stats.pipe(
+            Option.flatMap((stats) => stats.pitching),
+            Option.filter(hasPitchingData),
+            Option.match({
+              onNone: () => [],
+              onSome: (stats) => [
+                Game.PitchingBoxscoreLine.make({
+                  player: mapPlayer(player.person, player.position, references),
+                  stats: mapPitchingLine(stats),
+                }),
+              ],
+            }),
+          ),
+        )
+
+        return {
+          lineup: mapLineup(team, references),
+          boxscore: Game.TeamBoxscore.make({ batting, pitching }),
+        }
+      },
+    }),
+  )
+
+const mapBoxscore = (raw: MlbDto.Boxscore, references: References) => {
+  const away = mapTeamBoxscore(raw.teams.away, references)
+  const home = mapTeamBoxscore(raw.teams.home, references)
+  const lineups =
+    away.lineup.length > 0 || home.lineup.length > 0
+      ? Option.some(Game.Lineups.make({ away: away.lineup, home: home.lineup }))
+      : Option.none()
+  const hasBoxscore =
+    away.boxscore.batting.length > 0 ||
+    away.boxscore.pitching.length > 0 ||
+    home.boxscore.batting.length > 0 ||
+    home.boxscore.pitching.length > 0
+
+  return {
+    lineups,
+    boxscore: hasBoxscore
+      ? Option.some(Game.Boxscore.make({ away: away.boxscore, home: home.boxscore }))
+      : Option.none(),
+  }
+}
+
+type BoxscoreData = ReturnType<typeof mapBoxscore>
+
+const decodeLinescore = (
+  input: Option.Option<unknown>,
+): Effect.Effect<Option.Option<Game.Linescore>> =>
+  input.pipe(
+    Option.match({
+      onNone: () => Effect.succeed(Option.none<Game.Linescore>()),
+      onSome: (value) =>
+        Schema.decodeUnknownEffect(MlbDto.Linescore)(value).pipe(
+          Effect.map(mapLinescore),
+          Effect.asSome,
+          Effect.orElseSucceed(() => Option.none()),
+        ),
+    }),
+  )
+
+const decodeProbablePitchers = (
+  input: Option.Option<unknown>,
+  references: References,
+): Effect.Effect<Option.Option<Game.ProbablePitchers>> =>
+  input.pipe(
+    Option.match({
+      onNone: () => Effect.succeed(Option.none<Game.ProbablePitchers>()),
+      onSome: (value) =>
+        Schema.decodeUnknownEffect(MlbDto.ProbablePitchers)(value).pipe(
+          Effect.map((raw) =>
+            Game.ProbablePitchers.make({
+              away: raw.away.pipe(
+                Option.map((pitcher) => mapPlayer(pitcher, Option.none(), references)),
+              ),
+              home: raw.home.pipe(
+                Option.map((pitcher) => mapPlayer(pitcher, Option.none(), references)),
+              ),
+            }),
+          ),
+          Effect.asSome,
+          Effect.orElseSucceed(() => Option.none()),
+        ),
+    }),
+  )
+
+const decodeBoxscore = (
+  input: Option.Option<unknown>,
+  references: References,
+): Effect.Effect<Option.Option<BoxscoreData>> =>
+  input.pipe(
+    Option.match({
+      onNone: () => Effect.succeed(Option.none<BoxscoreData>()),
+      onSome: (value) =>
+        Schema.decodeUnknownEffect(MlbDto.Boxscore)(value).pipe(
+          Effect.map((raw) => mapBoxscore(raw, references)),
+          Effect.asSome,
+          Effect.orElseSucceed(() => Option.none()),
+        ),
+    }),
+  )
+
+const emptyProbablePitchers = (): Game.ProbablePitchers =>
+  Game.ProbablePitchers.make({ away: Option.none(), home: Option.none() })
+
+const gameUnavailable = (operation: string, message: string): Game.GameUnavailable =>
+  new Game.GameUnavailable({ operation, cause: new Error(message) })
+
+const mapGameOverview = Effect.fn('MlbGame.mapOverview')(function* (
+  requestedGamePk: number,
+  raw: MlbDto.GameFeed,
+  references: References,
+) {
+  if (raw.gamePk !== requestedGamePk || raw.gameData.game.pk !== requestedGamePk) {
+    return yield* gameUnavailable(
+      'GameOverview.validate',
+      'The returned feed does not belong to the requested game',
+    )
+  }
+
+  const rawLinescore = raw.liveData.pipe(Option.flatMap((liveData) => liveData.linescore))
+  const linescore = yield* decodeLinescore(rawLinescore)
+  const probablePitchers = Option.getOrElse(
+    yield* decodeProbablePitchers(raw.gameData.probablePitchers, references),
+    emptyProbablePitchers,
+  )
+  const rawBoxscore = raw.liveData.pipe(Option.flatMap((liveData) => liveData.boxscore))
+  const boxscoreData = yield* decodeBoxscore(rawBoxscore, references)
+  const status = mapStatus(raw.gameData.status)
+  const score = Status.isScoreBearing(status)
+    ? linescore.pipe(
+        Option.flatMap((value) => Option.all({ away: value.away.runs, home: value.home.runs })),
+        Option.map((value) => Game.Score.make(value)),
+      )
+    : Option.none()
+  const game = Game.Game.make({
+    ref: references.game(requestedGamePk),
+    type: mapGameType(Option.some(raw.gameData.game.type)),
+    startsAt: raw.gameData.datetime.dateTime,
+    awayTeam: mapTeam(raw.gameData.teams.away, references),
+    homeTeam: mapTeam(raw.gameData.teams.home, references),
+    status,
+    score,
+  })
+  return Game.GameOverview.make({
+    game,
+    linescore,
+    probablePitchers,
+    lineups: boxscoreData.pipe(Option.flatMap((value) => value.lineups)),
+    boxscore: boxscoreData.pipe(Option.flatMap((value) => value.boxscore)),
+  })
+})
 
 const scheduleDate = (value: string): Schedule.ScheduleDate => Schedule.ScheduleDate.make(value)
 
@@ -212,11 +517,11 @@ const scheduleUnavailable = (operation: string, cause: unknown) =>
 
 /** Owns the adapter-private reference cache used by schedule and game lookups. */
 const makeScheduleMapper = (references: References) => {
-  const mapRawGame = (
+  const mapProviderGame = (
     selectedDate: Schedule.ScheduleDate,
     input: unknown,
   ): Effect.Effect<Schedule.ScheduleOccurrence, Schema.SchemaError> =>
-    Schema.decodeUnknownEffect(RawGame)(input).pipe(
+    Schema.decodeUnknownEffect(MlbDto.Game)(input).pipe(
       Effect.map((raw) => {
         const status = mapStatus(raw.status)
         const away = mapTeam(raw.teams.away.team, references)
@@ -235,7 +540,6 @@ const makeScheduleMapper = (references: References) => {
           status,
           score,
         })
-        references.remember(game)
         const rescheduledTo = relatedDate(raw.rescheduleGameDate, raw.rescheduleDate)
         const rescheduledFrom = relatedDate(raw.rescheduledFromDate, raw.rescheduledFrom)
 
@@ -250,18 +554,18 @@ const makeScheduleMapper = (references: References) => {
 
   const mapPayload = (
     selectedDate: DateTime.DateTime,
-    payload: typeof RawScheduleResponse.Type,
+    payload: MlbDto.ScheduleResponse,
   ): Effect.Effect<Schedule.Schedule> => {
     const date = scheduleDate(DateTime.formatIsoDate(selectedDate))
     const games = payload.dates.flatMap((schedule) => schedule.games)
 
     return Effect.forEach(games, (game) =>
-      mapRawGame(date, game).pipe(Effect.orElseSucceed(() => unavailableOccurrence(date))),
+      mapProviderGame(date, game).pipe(Effect.orElseSucceed(() => unavailableOccurrence(date))),
     ).pipe(Effect.map((occurrences) => Schedule.Schedule.make({ date, occurrences })))
   }
 
   const map = (date: DateTime.DateTime, input: unknown) =>
-    Schema.decodeUnknownEffect(RawScheduleResponse)(input).pipe(
+    Schema.decodeUnknownEffect(MlbDto.ScheduleResponse)(input).pipe(
       Effect.flatMap((payload) => mapPayload(date, payload)),
       Effect.mapError((cause) => scheduleUnavailable('MlbSchedule.decode', cause)),
     )
@@ -300,7 +604,7 @@ export const layerLive = Layer.effectContext(
         })
         .pipe(
           Effect.flatMap(HttpClientResponse.filterStatusOk),
-          Effect.flatMap(HttpClientResponse.schemaBodyJson(RawScheduleResponse)),
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(MlbDto.ScheduleResponse)),
           Effect.mapError((cause) => scheduleUnavailable('MlbSchedule.get', cause)),
         )
 
@@ -308,10 +612,22 @@ export const layerLive = Layer.effectContext(
     })
 
     const getGame = Effect.fn('MlbGame.get')(function* (gameRef: Game.GameRef) {
-      return yield* Option.match(references.findGame(gameRef), {
+      const gamePk = yield* Option.match(references.findGamePk(gameRef), {
         onNone: () => Effect.fail(new Game.GameNotFound({ gameRef })),
-        onSome: (game) => Effect.succeed(game),
+        onSome: Effect.succeed,
       })
+
+      const payload = yield* httpClient
+        .get(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`)
+        .pipe(
+          Effect.flatMap(HttpClientResponse.filterStatusOk),
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(MlbDto.GameFeed)),
+          Effect.mapError(() =>
+            gameUnavailable('GameOverview.fetch', 'The game overview could not be retrieved'),
+          ),
+        )
+
+      return yield* mapGameOverview(gamePk, payload, references)
     })
 
     // One adapter acquisition supplies both public services. They share the

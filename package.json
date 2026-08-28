@@ -4,7 +4,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "DEV=true TZ=UTC bun run --watch src/index.tsx",
+    "dev": "TZ=UTC nub watch src/index.tsx",
     "lint": "oxlint --disable-nested-config",
     "typecheck": "tsc --noEmit",
     "test": "vitest src",
@@ -14,6 +14,7 @@
     "@effect/atom-react": "4.0.0-rc.111",
     "@effect/platform-bun": "4.0.0-rc.111",
     "@opentui/core": "0.5.6",
+    "@opentui/keymap": "0.5.6",
     "@opentui/react": "0.5.6",
     "effect": "4.0.0-rc.111",
     "react": "^19.2.8",

@@ -1,80 +1,56 @@
-import { useAtom, useAtomSet, useAtomValue } from '@effect/atom-react'
+import { RegistryProvider, useAtomSet, useAtomValue } from '@effect/atom-react'
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
-import { createCliRenderer, TextAttributes } from '@opentui/core'
-import { createRoot, useKeyboard } from '@opentui/react'
+import {
+  CliRenderEvents,
+  createCliRenderer,
+  TextAttributes,
+  type CliRenderer,
+  type InputRenderable,
+} from '@opentui/core'
+import { createDefaultOpenTuiKeymap } from '@opentui/keymap/opentui'
+import { KeymapProvider, useActiveKeys, useBindings } from '@opentui/keymap/react'
+import { createRoot } from '@opentui/react'
 import * as Cause from 'effect/Cause'
-import * as Console from 'effect/Console'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
-import * as Match from 'effect/Match'
-import * as Number from 'effect/Number'
-import * as Option from 'effect/Option'
-import * as EffectSchedule from 'effect/Schedule'
-import * as Stream from 'effect/Stream'
-import * as FetchHttpClient from 'effect/unstable/http/FetchHttpClient'
+import * as Schema from 'effect/Schema'
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult'
-import * as Atom from 'effect/unstable/reactivity/Atom'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
-import { dateAtom, goToDateAtom, nextDay, now, previousDay } from './date'
+import {
+  closeOverlayAtom,
+  goToDateAtom,
+  isSelectedOccurrence,
+  nextDateAtom,
+  openOverlayAtom,
+  openSelectedGameAtom,
+  Overlay,
+  popRouteAtom,
+  previousDateAtom,
+  Route,
+  routeStackAtom,
+  selectNextOccurrenceAtom,
+  selectOccurrenceAtom,
+  selectPreviousOccurrenceAtom,
+  selectedDateAtom,
+  selectedOccurrenceAtom,
+  synchronizeSelectionAtom,
+  todayAtom,
+  overlayStackAtom,
+} from './AppState'
+import {
+  appCommandLayer,
+  detailCommandLayer,
+  focusedDateInputCommandLayer,
+  overlayCommandLayer,
+  scheduleCommandLayer,
+} from './CommandLayers'
 import { GameGridItem } from './game-grid-item'
 import { Loading } from './loading'
-import * as Mlb from './mlb-adapter'
 import * as Schedule from './Schedule'
-import { useCurrentView, View } from './View'
+import { scheduleForDateAtom } from './ScheduleResource'
 
-const scheduleRuntime = Atom.runtime(Mlb.layerLive.pipe(Layer.provide(FetchHttpClient.layer)))
-
-const getScheduleForDate = Effect.fn('Schedule.getScheduleForDate')(function* (
-  date: DateTime.DateTime,
-) {
-  const scheduleService = yield* Schedule.ScheduleService
-  return yield* scheduleService.get(date)
-})
-
-const scheduleAtom = Atom.family((date: DateTime.DateTime) =>
-  scheduleRuntime.atom(
-    Stream.fromEffectSchedule(getScheduleForDate(date), EffectSchedule.spaced('15 seconds')).pipe(
-      Stream.takeUntil((schedule) => !Schedule.hasNonTerminalGame(schedule)),
-    ),
-  ),
-)
-
-const selectedGameIndexAtom = Atom.make(0)
-
-const previousGameAtom = Atom.fnSync<DateTime.DateTime>()((date, get) => {
-  const schedule = AsyncResult.getOrThrow(get(scheduleAtom(date)))
-
-  const index = get(selectedGameIndexAtom)
-  const newIndex = Number.clamp({
-    minimum: 0,
-    maximum: Math.max(schedule.occurrences.length - 1, 0),
-  })(index - 1)
-
-  get.set(selectedGameIndexAtom, newIndex)
-})
-
-const nextGameAtom = Atom.fnSync<DateTime.DateTime>()((date, get) => {
-  const schedule = AsyncResult.getOrThrow(get(scheduleAtom(date)))
-
-  const index = get(selectedGameIndexAtom)
-  const newIndex = Number.clamp({
-    minimum: 0,
-    maximum: Math.max(schedule.occurrences.length - 1, 0),
-  })(index + 1)
-
-  get.set(selectedGameIndexAtom, newIndex)
-})
-
-const GoToDate = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
-  <box flexDirection='column' gap={1}>
-    <text>Go to date</text>
-    <input focused placeholder='YYYY-MM-DD' value={value} onChange={onChange} padding={1} />
-  </box>
-)
-
-const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
+const CenteredContainer = ({ children }: { children: ReactNode }) => (
   <box
     justifyContent='center'
     flexDirection='column'
@@ -89,27 +65,38 @@ const CenteredContainer = ({ children }: { children: React.ReactNode }) => (
 const isSubsequentWaiting = <A, E>(result: AsyncResult.AsyncResult<A, E>): boolean =>
   AsyncResult.isNotInitial(result) && AsyncResult.isWaiting(result)
 
-const whenSuccess = <A, E>(result: AsyncResult.AsyncResult<A, E>, onSuccess: (a: A) => void) => {
-  if (AsyncResult.isSuccess(result)) {
-    onSuccess(result.value)
-  }
-}
-
 const NoGamesScheduled = () => <text attributes={TextAttributes.DIM}>No games today.</text>
 
-const KeyboardShortcut = ({ shortcut, description }: { shortcut: string; description: string }) => (
-  <box flexDirection='row' flexWrap='wrap' gap={1} alignItems='center'>
-    <box paddingLeft={1} paddingRight={1} backgroundColor='white' justifyContent='center'>
-      <text fg='black'>{shortcut}</text>
+const CommandHints = () => {
+  const activeKeys = useActiveKeys()
+
+  return (
+    <box flexDirection='row' flexWrap='wrap' gap={1}>
+      {activeKeys.map((key) => {
+        if (key.command === undefined) {
+          return null
+        }
+
+        const commandName = typeof key.command === 'string' ? key.command : key.command.name
+        return (
+          <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>
+            <text attributes={TextAttributes.BOLD}>{key.display}</text>
+            <text attributes={TextAttributes.DIM}>{commandName}</text>
+          </box>
+        )
+      })}
     </box>
-    <text attributes={TextAttributes.DIM}>{description}</text>
-  </box>
-)
+  )
+}
 
-const DailyGameView = ({ schedule }: { schedule: Schedule.Schedule }) => {
-  const selectedGameIndex = useAtomValue(selectedGameIndexAtom)
-
-  const { pushView } = useCurrentView()
+const DailyGameView = ({
+  schedule,
+  onOpenOccurrence,
+}: {
+  schedule: Schedule.Schedule
+  onOpenOccurrence: (occurrence: Schedule.AvailableScheduleOccurrence) => void
+}) => {
+  const selection = useAtomValue(selectedOccurrenceAtom)
 
   if (schedule.occurrences.length === 0) {
     return (
@@ -130,22 +117,22 @@ const DailyGameView = ({ schedule }: { schedule: Schedule.Schedule }) => {
       flexWrap='wrap'
       justifyContent='center'
     >
-      {schedule.occurrences.map((occurrence, index) =>
+      {schedule.occurrences.map((occurrence) =>
         Schedule.isAvailableScheduleOccurrence(occurrence) ? (
           <GameGridItem
-            onMouseUp={(e) => {
-              pushView(View.GameDetails({ occurrence }))
-              e.stopPropagation()
+            onMouseUp={(event) => {
+              onOpenOccurrence(occurrence)
+              event.stopPropagation()
             }}
             flexBasis={24}
-            key={`${occurrence.selectedDate}-${occurrence.game.ref}`}
-            isSelected={index === selectedGameIndex}
+            key={`available-${occurrence.selectedDate}-${occurrence.game.ref}`}
+            isSelected={isSelectedOccurrence(selection, occurrence)}
             game={occurrence.game}
           />
         ) : (
           <box
             flexBasis={24}
-            key={`${occurrence.selectedDate}-${index}`}
+            key={`unavailable-${occurrence.selectedDate}-${occurrence.message}`}
             padding={1}
             borderStyle='single'
           >
@@ -157,187 +144,295 @@ const DailyGameView = ({ schedule }: { schedule: Schedule.Schedule }) => {
   )
 }
 
-const GameDetailsView = ({ occurrence }: { occurrence: Schedule.AvailableScheduleOccurrence }) => {
-  const { game } = occurrence
-  return (
-    <box flexDirection='column' padding={2} borderStyle='single'>
-      <text>
-        {game.awayTeam.name} at {game.homeTeam.name}
-      </text>
-      <text>{game.status.label}</text>
-      {Option.match(game.status.reason, {
-        onNone: () => null,
-        onSome: (reason) => <text>{reason}</text>,
-      })}
-      {Option.match(occurrence.rescheduledTo, {
-        onNone: () => null,
-        onSome: (date) => <text>Rescheduled to {date}</text>,
-      })}
-      {Option.match(occurrence.rescheduledFrom, {
-        onNone: () => null,
-        onSome: (date) => <text>Rescheduled from {date}</text>,
-      })}
-    </box>
-  )
-}
-
-const App = () => {
-  const { currentView, isNestedView, pushView, popView } = useCurrentView()
-  const [isGoToDateOpen, setIsGoToDateOpen] = useState(false)
-
-  const [date, setDate] = useAtom(dateAtom)
-  const [goToDateValue, setGoToDateValue] = useState(DateTime.formatIsoDate(date))
-  const goToDate = useAtomSet(goToDateAtom, { mode: 'promise' })
-  const schedule = useAtomValue(scheduleAtom(date))
-  const [selectedGameIndex, setSelectedGameIndex] = useAtom(selectedGameIndexAtom)
-
-  const goToPreviousGame = useAtomSet(previousGameAtom)
-  const goToNextGame = useAtomSet(nextGameAtom)
+const ScheduleScreen = () => {
+  const date = useAtomValue(selectedDateAtom)
+  const scheduleResult = useAtomValue(scheduleForDateAtom(date))
+  const previousDate = useAtomSet(previousDateAtom)
+  const nextDate = useAtomSet(nextDateAtom)
+  const today = useAtomSet(todayAtom)
+  const openOverlay = useAtomSet(openOverlayAtom)
+  const selectPreviousOccurrence = useAtomSet(selectPreviousOccurrenceAtom)
+  const selectNextOccurrence = useAtomSet(selectNextOccurrenceAtom)
+  const selectOccurrence = useAtomSet(selectOccurrenceAtom)
+  const openSelectedGame = useAtomSet(openSelectedGameAtom)
+  const synchronizeSelection = useAtomSet(synchronizeSelectionAtom)
 
   useEffect(() => {
-    setSelectedGameIndex(0)
-  }, [schedule, setSelectedGameIndex])
-
-  useKeyboard((key) => {
-    if (isGoToDateOpen) {
-      if (key.name === 'escape') {
-        setIsGoToDateOpen(false)
-      } else if (key.name === 'return') {
-        void goToDate(goToDateValue).then(() => setIsGoToDateOpen(false))
-      }
-      return
+    if (AsyncResult.isSuccess(scheduleResult)) {
+      synchronizeSelection(scheduleResult.value)
     }
+  }, [scheduleResult, synchronizeSelection])
 
-    if (key.name === 'escape' && isNestedView) {
-      popView()
+  const previousOccurrence = useCallback(() => {
+    if (AsyncResult.isSuccess(scheduleResult)) {
+      selectPreviousOccurrence(scheduleResult.value)
     }
-
-    if (key.name === 'left') {
-      goToPreviousGame(date)
+  }, [scheduleResult, selectPreviousOccurrence])
+  const nextOccurrence = useCallback(() => {
+    if (AsyncResult.isSuccess(scheduleResult)) {
+      selectNextOccurrence(scheduleResult.value)
     }
+  }, [scheduleResult, selectNextOccurrence])
+  const openOccurrence = useCallback(
+    (occurrence: Schedule.AvailableScheduleOccurrence) => {
+      selectOccurrence(occurrence)
+      openSelectedGame(undefined)
+    },
+    [openSelectedGame, selectOccurrence],
+  )
+  const openHelp = useCallback(() => openOverlay(Overlay.Help()), [openOverlay])
 
-    if (key.name === 'right') {
-      goToNextGame(date)
-    }
-
-    if (key.name === 'return') {
-      whenSuccess(schedule, (schedule) => {
-        const occurrence = schedule.occurrences[selectedGameIndex]
-        if (occurrence !== undefined && Schedule.isAvailableScheduleOccurrence(occurrence)) {
-          pushView(View.GameDetails({ occurrence }))
-        }
-      })
-    }
-
-    Match.value(key.name).pipe(
-      Match.when(Match.is('q'), () => process.exit(0)),
-      Match.when(Match.is('p'), () => setDate(previousDay)),
-      Match.when(Match.is('n'), () => setDate(nextDay)),
-      Match.when(Match.is('t'), () => setDate(now)),
-      Match.when(Match.is('g'), () => {
-        setGoToDateValue(DateTime.formatIsoDate(date))
-        setIsGoToDateOpen(true)
+  useBindings(
+    () =>
+      scheduleCommandLayer({
+        previousDate: () => previousDate(undefined),
+        nextDate: () => nextDate(undefined),
+        today: () => today(undefined),
+        openGoToDate: () => openOverlay(Overlay.GoToDate()),
+        previousOccurrence,
+        nextOccurrence,
+        openSelectedGame: () => openSelectedGame(undefined),
+        openHelp,
       }),
-      Match.when(Match.is('j'), () => {}),
-      Match.when(Match.is('k'), () => {}),
-      Match.when(Match.is('?'), () => {
-        // TODO: show help dialog
-      }),
-    )
-  })
+    [
+      nextDate,
+      nextOccurrence,
+      openHelp,
+      openOverlay,
+      openSelectedGame,
+      previousDate,
+      previousOccurrence,
+      today,
+    ],
+  )
 
   return (
     <>
-      <box
-        width='100%'
-        height='100%'
-        flexDirection='column'
-        alignItems='center'
-        justifyContent='center'
-        marginTop={1}
-        gap={1}
-        position='relative'
-      >
-        {View.$match(currentView, {
-          Schedule: () => (
-            <>
-              <box alignSelf='center'>
-                <ascii-font text='Ballgame' font='tiny' color={['red', 'white', 'blue']} />
-              </box>
-              <box flexDirection='column' alignItems='center'>
-                <box flexDirection='column' gap={1}>
-                  <text>
-                    <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
-                  </text>
-                  <box alignSelf='center' minHeight={4}>
-                    {isSubsequentWaiting(schedule) ? <text>Loading...</text> : null}
-                  </box>
-                </box>
-                <box flexGrow={0}>
-                  {AsyncResult.builder(schedule)
-                    .onInitial(() => (
-                      <CenteredContainer>
-                        <Loading />
-                      </CenteredContainer>
-                    ))
-                    .onFailure((error) => {
-                      console.error(error)
-                      return <text>{Cause.pretty(error)}</text>
-                    })
-                    .onSuccess((schedule) => {
-                      return <DailyGameView schedule={schedule} />
-                    })
-                    .orNull()}
-                </box>
-              </box>
-              <box marginTop='auto' />
-              <box
-                paddingLeft={1}
-                paddingRight={1}
-                borderStyle='single'
-                borderColor='gray'
-                flexDirection='row'
-                gap={1}
-              >
-                <KeyboardShortcut shortcut='p' description='previous day' />
-                <KeyboardShortcut shortcut='t' description='today' />
-                <KeyboardShortcut shortcut='n' description='next day' />
-                <KeyboardShortcut shortcut='g' description='go to day' />
-                <KeyboardShortcut shortcut='←/→' description='prev/next game' />
-                <KeyboardShortcut shortcut='⏎' description='select game' />
-              </box>
-            </>
-          ),
-          GameDetails: ({ occurrence }) => <GameDetailsView occurrence={occurrence} />,
-        })}
-        {isGoToDateOpen ? (
-          <box
-            position='absolute'
-            flexDirection='column'
-            padding={2}
-            borderStyle='single'
-            backgroundColor='black'
-          >
-            <GoToDate value={goToDateValue} onChange={setGoToDateValue} />
+      <box alignSelf='center'>
+        <ascii-font text='Ballgame' font='tiny' color={['red', 'white', 'blue']} />
+      </box>
+      <box flexDirection='column' alignItems='center'>
+        <box flexDirection='column' gap={1}>
+          <text>
+            <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
+          </text>
+          <box alignSelf='center' minHeight={1}>
+            {isSubsequentWaiting(scheduleResult) ? <text>Refreshing…</text> : null}
           </box>
-        ) : null}
+        </box>
+        <box flexGrow={0}>
+          {AsyncResult.builder(scheduleResult)
+            .onInitial(() => (
+              <CenteredContainer>
+                <Loading />
+              </CenteredContainer>
+            ))
+            .onFailure((error) => <text>{Cause.pretty(error)}</text>)
+            .onSuccess((schedule) => (
+              <DailyGameView schedule={schedule} onOpenOccurrence={openOccurrence} />
+            ))
+            .orNull()}
+        </box>
       </box>
     </>
   )
 }
 
-const enterAltScreenCommand = Console.log('\x1b[?1049h')
-const leaveAltScreenCommand = Console.log('\x1b[?1049l')
+const GameDetailsShell = () => {
+  const popRoute = useAtomSet(popRouteAtom)
+  const openOverlay = useAtomSet(openOverlayAtom)
 
-const renderApp = Effect.tryPromise(async () => {
-  const renderer = await createCliRenderer()
-  return createRoot(renderer).render(<App />)
-})
+  useBindings(
+    () =>
+      detailCommandLayer({
+        back: () => popRoute(undefined),
+        openHelp: () => openOverlay(Overlay.Help()),
+      }),
+    [openOverlay, popRoute],
+  )
 
-const program = Effect.gen(function* () {
-  yield* enterAltScreenCommand
-  yield* renderApp
-  yield* leaveAltScreenCommand
-})
+  return (
+    <CenteredContainer>
+      <box flexDirection='column' padding={2} borderStyle='single' gap={1}>
+        <text>Game details</text>
+        <text attributes={TextAttributes.DIM}>Details are not part of this shell.</text>
+        <text attributes={TextAttributes.DIM}>Press Escape to return to the schedule.</text>
+      </box>
+    </CenteredContainer>
+  )
+}
+
+const GoToDateOverlay = () => {
+  const date = useAtomValue(selectedDateAtom)
+  const closeOverlay = useAtomSet(closeOverlayAtom)
+  const goToDate = useAtomSet(goToDateAtom, { mode: 'promise' })
+  const inputRef = useRef<InputRenderable>(null)
+  const [value, setValue] = useState(() => DateTime.formatIsoDate(date))
+  const [error, setError] = useState<string | undefined>()
+
+  const submit = useCallback(() => {
+    void goToDate(value)
+      .then(() => closeOverlay(undefined))
+      .catch(() => setError('Enter a valid ISO date.'))
+  }, [closeOverlay, goToDate, value])
+
+  useBindings(
+    () => overlayCommandLayer(Overlay.GoToDate(), { close: () => closeOverlay(undefined) }),
+    [closeOverlay],
+  )
+  useBindings(
+    () => ({
+      ...focusedDateInputCommandLayer({ submit }),
+      targetRef: inputRef,
+      targetMode: 'focus' as const,
+    }),
+    [submit],
+  )
+
+  return (
+    <box flexDirection='column' gap={1} padding={2} borderStyle='single' backgroundColor='black'>
+      <text>Go to date</text>
+      <input
+        ref={inputRef}
+        focused
+        placeholder='YYYY-MM-DD'
+        value={value}
+        onChange={setValue}
+        onSubmit={submit}
+        padding={1}
+      />
+      {error === undefined ? null : <text fg='red'>{error}</text>}
+      <text attributes={TextAttributes.DIM}>Enter to submit · Escape to cancel</text>
+    </box>
+  )
+}
+
+const HelpOverlay = () => {
+  const closeOverlay = useAtomSet(closeOverlayAtom)
+
+  useBindings(
+    () => overlayCommandLayer(Overlay.Help(), { close: () => closeOverlay(undefined) }),
+    [closeOverlay],
+  )
+
+  return (
+    <box flexDirection='column' gap={1} padding={2} borderStyle='single' backgroundColor='black'>
+      <text>Available commands</text>
+      <CommandHints />
+      <text attributes={TextAttributes.DIM}>Press Escape or ? to close.</text>
+    </box>
+  )
+}
+
+const OverlayHost = () => {
+  const overlays = useAtomValue(overlayStackAtom)
+  const overlay = overlays.at(-1)
+
+  if (overlay === undefined) {
+    return null
+  }
+
+  return (
+    <box
+      width='100%'
+      height='100%'
+      position='absolute'
+      zIndex={10}
+      alignItems='center'
+      justifyContent='center'
+    >
+      {Overlay.$match(overlay, {
+        GoToDate: () => <GoToDateOverlay />,
+        Help: () => <HelpOverlay />,
+      })}
+    </box>
+  )
+}
+
+export const App = ({ onQuit }: { onQuit: () => void }) => {
+  const routes = useAtomValue(routeStackAtom)
+  const currentRoute = routes.at(-1) ?? Route.Schedule()
+
+  useBindings(() => appCommandLayer({ quit: onQuit }), [onQuit])
+
+  return (
+    <box
+      width='100%'
+      height='100%'
+      flexDirection='column'
+      alignItems='center'
+      justifyContent='center'
+      marginTop={1}
+      gap={1}
+      position='relative'
+    >
+      {Route.$match(currentRoute, {
+        Schedule: () => <ScheduleScreen />,
+        GameDetails: () => <GameDetailsShell />,
+      })}
+      <box marginTop='auto' />
+      <box
+        paddingLeft={1}
+        paddingRight={1}
+        borderStyle='single'
+        borderColor='gray'
+        flexDirection='row'
+        gap={1}
+      >
+        <CommandHints />
+      </box>
+      <OverlayHost />
+    </box>
+  )
+}
+
+const waitForRendererDestroy = (renderer: CliRenderer) =>
+  Effect.callback<void>((resume) => {
+    if (renderer.isDestroyed) {
+      resume(Effect.void)
+      return
+    }
+
+    const onDestroy = () => resume(Effect.void)
+    renderer.once(CliRenderEvents.DESTROY, onDestroy)
+    return Effect.sync(() => renderer.off(CliRenderEvents.DESTROY, onDestroy))
+  })
+
+class ApplicationStartupError extends Schema.TaggedError<ApplicationStartupError>()(
+  'ApplicationStartupError',
+  { cause: Schema.Defect() },
+) {}
+
+const createApplicationRenderer = Effect.tryPromise({
+  try: () => createCliRenderer(),
+  catch: (cause) => new ApplicationStartupError({ cause }),
+}).pipe(
+  Effect.flatMap((renderer) =>
+    Effect.try({
+      try: () => {
+        const keymap = createDefaultOpenTuiKeymap(renderer)
+        const root = createRoot(renderer)
+        root.render(
+          <RegistryProvider>
+            <KeymapProvider keymap={keymap}>
+              <App onQuit={() => renderer.destroy()} />
+            </KeymapProvider>
+          </RegistryProvider>,
+        )
+        return renderer
+      },
+      catch: (error) => {
+        renderer.destroy()
+        return new ApplicationStartupError({ cause: error })
+      },
+    }),
+  ),
+)
+
+const program = Effect.acquireUseRelease(
+  createApplicationRenderer,
+  waitForRendererDestroy,
+  (renderer) => Effect.sync(() => renderer.destroy()),
+)
 
 BunRuntime.runMain(program)

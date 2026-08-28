@@ -512,9 +512,6 @@ const unavailableOccurrence = (
     }),
   })
 
-const scheduleUnavailable = (operation: string, cause: unknown) =>
-  new Schedule.ScheduleUnavailable({ operation, cause })
-
 /** Owns the adapter-private reference cache used by schedule and game lookups. */
 const makeScheduleMapper = (references: References) => {
   const mapProviderGame = (
@@ -567,7 +564,7 @@ const makeScheduleMapper = (references: References) => {
   const map = (date: DateTime.DateTime, input: unknown) =>
     Schema.decodeUnknownEffect(MlbDto.ScheduleResponse)(input).pipe(
       Effect.flatMap((payload) => mapPayload(date, payload)),
-      Effect.mapError((cause) => scheduleUnavailable('MlbSchedule.decode', cause)),
+      Effect.mapError(() => new Schedule.ScheduleUnavailable()),
     )
 
   return { map, mapPayload }
@@ -605,7 +602,7 @@ export const layerLive = Layer.effectContext(
         .pipe(
           Effect.flatMap(HttpClientResponse.filterStatusOk),
           Effect.flatMap(HttpClientResponse.schemaBodyJson(MlbDto.ScheduleResponse)),
-          Effect.mapError((cause) => scheduleUnavailable('MlbSchedule.get', cause)),
+          Effect.mapError(() => new Schedule.ScheduleUnavailable()),
         )
 
       return yield* scheduleMapper.mapPayload(date, payload)

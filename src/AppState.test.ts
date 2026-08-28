@@ -16,7 +16,7 @@ import * as Schedule from './Schedule'
 import * as Status from './Status'
 import * as Team from './Team'
 
-const at = (value: string) => Schema.decodeSync(Schema.DateTimeUtcFromString)(value)
+const parseUtcDateTime = (value: string) => Schema.decodeSync(Schema.DateTimeUtcFromString)(value)
 
 const team = (ref: string, name: string): Team.Team =>
   Team.Team.make({
@@ -35,7 +35,7 @@ const occurrence = (
     game: Game.Game.make({
       ref: Game.GameRef.make(ref),
       type: 'RegularSeason',
-      startsAt: at('2025-04-05T20:10:00Z'),
+      startsAt: parseUtcDateTime('2025-04-05T20:10:00Z'),
       awayTeam: team(`away-${ref}`, 'Away'),
       homeTeam: team(`home-${ref}`, 'Home'),
       status: Status.GameStatus.make({
@@ -48,11 +48,6 @@ const occurrence = (
     rescheduledTo: Option.none(),
     rescheduledFrom: Option.none(),
   })
-
-const schedule = (
-  date: Schedule.ScheduleDate,
-  occurrences: ReadonlyArray<Schedule.ScheduleOccurrence>,
-): Schedule.Schedule => Schedule.Schedule.make({ date, occurrences })
 
 describe('application route and occurrence state', () => {
   const registries: Array<AtomRegistry.AtomRegistry> = []
@@ -71,7 +66,10 @@ describe('application route and occurrence state', () => {
 
   test('moves and opens a selected occurrence without storing an array index', () => {
     const date = Schedule.ScheduleDate.make('2025-04-05')
-    const slate = schedule(date, [occurrence(date, 'game-1'), occurrence(date, 'game-2')])
+    const slate = Schedule.Schedule.make({
+      date,
+      occurrences: [occurrence(date, 'game-1'), occurrence(date, 'game-2')],
+    })
     const state = registry()
 
     state.set(synchronizeSelectionAtom, slate)
@@ -101,7 +99,10 @@ describe('application route and occurrence state', () => {
     const state = registry()
 
     state.set(selectOccurrenceAtom, original)
-    state.set(synchronizeSelectionAtom, schedule(makeupDate, [makeup]))
+    state.set(
+      synchronizeSelectionAtom,
+      Schedule.Schedule.make({ date: makeupDate, occurrences: [makeup] }),
+    )
 
     expect(Option.getOrThrow(state.get(selectedOccurrenceAtom))).toEqual({
       selectedDate: makeupDate,
@@ -113,7 +114,7 @@ describe('application route and occurrence state', () => {
     const date = Schedule.ScheduleDate.make('2025-04-05')
     const first = occurrence(date, 'game-1')
     const second = occurrence(date, 'game-2')
-    const slate = schedule(date, [first, second])
+    const slate = Schedule.Schedule.make({ date, occurrences: [first, second] })
 
     expect(
       moveSelection(slate, Option.some({ selectedDate: date, gameRef: first.game.ref }), 'next'),

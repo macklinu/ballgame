@@ -14,10 +14,6 @@ const getScheduleForDate = Effect.fn('Schedule.getScheduleForDate')(function* (
   return yield* scheduleService.get(date)
 })
 
-/**
- * The Atom stream is the sole refresh owner. Mounted React views only observe
- * it; they never install their own timer.
- */
 export const scheduleForDateAtom = Atom.family((date: DateTime.DateTime) =>
   appAtomRuntime.atom(
     Stream.fromEffectSchedule(getScheduleForDate(date), EffectSchedule.spaced('15 seconds')).pipe(

@@ -88,7 +88,7 @@ const gameState = (state: Status.GameState): Status.GameState => state
 
 const mapStatusState = (raw: MlbDto.Status): Status.GameState =>
   Match.value(optionOrEmpty(raw.codedGameState)).pipe(
-    Match.when('P', () =>
+    Match.whenOr('P', 'S', () =>
       gameState(optionOrEmpty(raw.statusCode) === 'PW' ? 'Warmup' : 'Scheduled'),
     ),
     Match.when('I', () => {

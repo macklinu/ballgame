@@ -25,9 +25,12 @@ import {
   selectedOccurrenceAtom,
   synchronizeSelectionAtom,
   todayAtom,
+  type ScheduleOccurrenceRef,
 } from './AppState'
 import { appCommandLayer, detailCommandLayer, scheduleCommandLayer } from './CommandLayers'
 import { GameGridItem } from './game-grid-item'
+import { GameDetails } from './GameDetails'
+import { gameOverviewAtom } from './GameOverviewResource'
 import { Loading } from './loading'
 import { CommandHints, OverlayHost } from './Overlays'
 import * as Schedule from './Schedule'
@@ -202,9 +205,16 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
   )
 }
 
-const GameDetailsShell = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
+const GameDetailsShell = ({
+  occurrence,
+  commandsEnabled,
+}: {
+  occurrence: ScheduleOccurrenceRef
+  commandsEnabled: boolean
+}) => {
   const popRoute = useAtomSet(popRouteAtom)
   const openOverlay = useAtomSet(openOverlayAtom)
+  const overviewResult = useAtomValue(gameOverviewAtom(occurrence.gameRef))
 
   useBindings(
     () => ({
@@ -217,15 +227,32 @@ const GameDetailsShell = ({ commandsEnabled }: { commandsEnabled: boolean }) => 
     [commandsEnabled, openOverlay, popRoute],
   )
 
-  return (
-    <CenteredContainer>
-      <box flexDirection='column' padding={2} borderStyle='single' gap={1}>
-        <text>Game details</text>
-        <text attributes={TextAttributes.DIM}>Details are not part of this shell.</text>
-        <text attributes={TextAttributes.DIM}>Press Escape to return to the schedule.</text>
-      </box>
-    </CenteredContainer>
-  )
+  return Option.match(AsyncResult.value(overviewResult), {
+    onNone: () =>
+      AsyncResult.builder(overviewResult)
+        .onInitial(() => (
+          <CenteredContainer>
+            <Loading />
+          </CenteredContainer>
+        ))
+        .onFailure(() => (
+          <CenteredContainer>
+            <box flexDirection='column' padding={2} borderStyle='single' gap={1}>
+              <text>Game details are unavailable.</text>
+              <text attributes={TextAttributes.DIM}>Press Escape to return to the schedule.</text>
+            </box>
+          </CenteredContainer>
+        ))
+        .orNull(),
+    onSome: (overview) => (
+      <GameDetails
+        overview={overview}
+        occurrence={occurrence}
+        isRefreshing={isSubsequentWaiting(overviewResult)}
+        onBack={() => popRoute(undefined)}
+      />
+    ),
+  })
 }
 
 export const App = ({ onQuit }: { onQuit: () => void }) => {
@@ -252,7 +279,9 @@ export const App = ({ onQuit }: { onQuit: () => void }) => {
     >
       {Route.$match(currentRoute, {
         Schedule: () => <ScheduleScreen commandsEnabled={commandsEnabled} />,
-        GameDetails: () => <GameDetailsShell commandsEnabled={commandsEnabled} />,
+        GameDetails: ({ occurrence }) => (
+          <GameDetailsShell occurrence={occurrence} commandsEnabled={commandsEnabled} />
+        ),
       })}
       <box marginTop='auto' />
       <box

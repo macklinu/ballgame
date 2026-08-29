@@ -67,6 +67,18 @@ describe('contextual command layers', () => {
     keymap.root.append(input)
 
     keymap.keymap.registerLayer(appCommandLayer({ quit: () => calls.push('quit') }))
+    keymap.keymap.registerLayer(
+      scheduleCommandLayer({
+        previousDate: () => calls.push('previous-date'),
+        nextDate: () => calls.push('next-date'),
+        today: () => calls.push('today'),
+        openGoToDate: () => calls.push('go-to-date'),
+        previousOccurrence: () => calls.push('previous-occurrence'),
+        nextOccurrence: () => calls.push('next-occurrence'),
+        openSelectedGame: () => calls.push('open-game'),
+        openHelp: () => calls.push('help'),
+      }),
+    )
     keymap.keymap.registerLayer({
       ...focusedDateInputCommandLayer({ submit: () => calls.push('submit-date') }),
       target: input,
@@ -75,10 +87,14 @@ describe('contextual command layers', () => {
     keymap.host.focus(input)
 
     const quitEvent = keymap.host.press('q')
+    const editEvents = ['p', 'n', 't', 'g', '?', 'left', 'right'].map((key) =>
+      keymap.host.press(key),
+    )
     keymap.host.press('return')
 
     expect(calls).toEqual(['submit-date'])
     expect(quitEvent.defaultPrevented).toBe(false)
+    expect(editEvents.every((event) => !event.defaultPrevented)).toBe(true)
     expect(keymap.diagnostics.takeErrors().errors).toEqual([])
   })
 })

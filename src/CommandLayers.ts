@@ -91,6 +91,13 @@ export const focusedDateInputCommandLayer = (handlers: DateInputCommandHandlers)
   ],
   bindings: [
     { key: 'return', cmd: 'date-input.submit' },
+    { key: 'p', cmd: 'date-input.edit', preventDefault: false },
+    { key: 'n', cmd: 'date-input.edit', preventDefault: false },
+    { key: 't', cmd: 'date-input.edit', preventDefault: false },
+    { key: 'g', cmd: 'date-input.edit', preventDefault: false },
     { key: 'q', cmd: 'date-input.edit', preventDefault: false },
+    { key: '?', cmd: 'date-input.edit', preventDefault: false },
+    { key: 'left', cmd: 'date-input.edit', preventDefault: false },
+    { key: 'right', cmd: 'date-input.edit', preventDefault: false },
   ],
 })

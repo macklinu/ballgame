@@ -1,11 +1,10 @@
 import * as Data from 'effect/Data'
-import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Atom from 'effect/unstable/reactivity/Atom'
 
-import { nextDay, now, previousDay } from './date'
+import { nextDay, now, parseLocalCalendarDate, previousDay } from './date'
 import * as Game from './Game'
 import * as Schedule from './Schedule'
 
@@ -49,6 +48,11 @@ export type Overlay = Data.TaggedEnum<{
   Help: {}
 }>
 export const Overlay = Data.taggedEnum<Overlay>()
+
+export class InvalidLocalCalendarDate extends Schema.TaggedError<InvalidLocalCalendarDate>()(
+  'InvalidLocalCalendarDate',
+  { input: Schema.String },
+) {}
 
 export const selectedDateAtom = Atom.make(now()).pipe(Atom.keepAlive)
 export const selectedOccurrenceAtom = Atom.make<Option.Option<ScheduleOccurrenceRef>>(Option.none())
@@ -127,14 +131,14 @@ export const todayAtom = Atom.fnSync<void>((_, ctx) => {
 })
 
 export const goToDateAtom = Atom.fn(
-  Effect.fnUntraced(
-    function* (input: string, ctx: Atom.FnContext) {
-      const date = yield* Schema.decodeEffect(Schema.DateTimeUtcFromString)(input)
-      ctx.set(selectedDateAtom, date)
-      resetSelection(ctx)
-    },
-    Effect.provide(DateTime.layerCurrentZoneNamed('UTC')),
-  ),
+  Effect.fnUntraced(function* (input: string, ctx: Atom.FnContext) {
+    const date = yield* Effect.fromOption(
+      parseLocalCalendarDate(input),
+      () => new InvalidLocalCalendarDate({ input }),
+    )
+    ctx.set(selectedDateAtom, date)
+    resetSelection(ctx)
+  }),
 )
 
 export const synchronizeSelectionAtom = Atom.fnSync<void, Schedule.Schedule>((schedule, ctx) => {

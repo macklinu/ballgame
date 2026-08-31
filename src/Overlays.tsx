@@ -45,6 +45,11 @@ const GoToDateOverlay = () => {
   const [value, setValue] = useState(() => DateTime.formatIsoDate(date))
   const [error, setError] = useState<string | undefined>()
 
+  const changeValue = (input: string) => {
+    setValue(input)
+    setError(undefined)
+  }
+
   const submit = useCallback(() => {
     const input = inputRef.current?.value
     if (input === undefined) {
@@ -57,6 +62,7 @@ const GoToDateOverlay = () => {
       return
     }
 
+    setError(undefined)
     goToDate(parsedDate.value)
     closeOverlay(undefined)
   }, [closeOverlay, goToDate])
@@ -82,7 +88,7 @@ const GoToDateOverlay = () => {
         focused
         placeholder='YYYY-MM-DD'
         value={value}
-        onChange={setValue}
+        onInput={changeValue}
         padding={1}
       />
       {error === undefined ? null : <text fg='red'>{error}</text>}

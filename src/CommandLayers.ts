@@ -28,6 +28,14 @@ export interface DateInputCommandHandlers {
   readonly submit: () => void
 }
 
+const dateInputEditingKeys = ['p', 'n', 't', 'g', 'q', '?', 'left', 'right'] as const
+
+const dateInputEditingBindings = dateInputEditingKeys.map((key) => ({
+  key,
+  cmd: 'date-input.edit',
+  preventDefault: false,
+}))
+
 export const appCommandLayer = (handlers: AppCommandHandlers) => ({
   priority: 0,
   commands: [{ name: 'app.quit', run: handlers.quit }],
@@ -89,15 +97,5 @@ export const focusedDateInputCommandLayer = (handlers: DateInputCommandHandlers)
     { name: 'date-input.submit', run: handlers.submit },
     { name: 'date-input.edit', run() {} },
   ],
-  bindings: [
-    { key: 'return', cmd: 'date-input.submit' },
-    { key: 'p', cmd: 'date-input.edit', preventDefault: false },
-    { key: 'n', cmd: 'date-input.edit', preventDefault: false },
-    { key: 't', cmd: 'date-input.edit', preventDefault: false },
-    { key: 'g', cmd: 'date-input.edit', preventDefault: false },
-    { key: 'q', cmd: 'date-input.edit', preventDefault: false },
-    { key: '?', cmd: 'date-input.edit', preventDefault: false },
-    { key: 'left', cmd: 'date-input.edit', preventDefault: false },
-    { key: 'right', cmd: 'date-input.edit', preventDefault: false },
-  ],
+  bindings: [{ key: 'return', cmd: 'date-input.submit' }, ...dateInputEditingBindings],
 })

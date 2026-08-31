@@ -1,4 +1,4 @@
-import { it as effectIt } from '@effect/vitest'
+import { it } from '@effect/vitest'
 import { ScrollBoxRenderable } from '@opentui/core'
 import { testRender } from '@opentui/react/test-utils'
 import * as Effect from 'effect/Effect'
@@ -181,7 +181,7 @@ const gameDetailScrollBox = (
 }
 
 describe('game details', () => {
-  effectIt.effect('renders scheduled context, pitchers, and an explicit lineup state', () =>
+  it.effect('renders scheduled context, pitchers, and an explicit lineup state', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>
@@ -204,7 +204,7 @@ describe('game details', () => {
     }),
   )
 
-  effectIt.effect('keeps scheduled details visible in a compact terminal', () =>
+  it.effect('keeps scheduled details visible in a compact terminal', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>
@@ -223,7 +223,7 @@ describe('game details', () => {
     }),
   )
 
-  effectIt.effect('renders a linescore and compact available batting and pitching data', () =>
+  it.effect('renders a linescore and compact available batting and pitching data', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>
@@ -248,7 +248,7 @@ describe('game details', () => {
     }),
   )
 
-  effectIt.effect('renders non-score-bearing status without invented score or stat sections', () =>
+  it.effect('renders non-score-bearing status without invented score or stat sections', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>
@@ -271,7 +271,7 @@ describe('game details', () => {
     }),
   )
 
-  effectIt.effect('returns to the board when Escape reaches the focused scrollbox', () =>
+  it.effect('returns to the board when Escape reaches the focused scrollbox', () =>
     Effect.gen(function* () {
       let backCount = 0
       const setup = yield* Effect.acquireRelease(
@@ -297,7 +297,7 @@ describe('game details', () => {
     }),
   )
 
-  effectIt.effect('preserves the mounted scrollbox position through a refreshed snapshot', () =>
+  it.effect('preserves the mounted scrollbox position through a refreshed snapshot', () =>
     Effect.gen(function* () {
       let refresh: () => void = () => {}
 

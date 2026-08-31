@@ -12,7 +12,11 @@ import {
   overlayStackAtom,
   selectedDateAtom,
 } from './AppState'
-import { focusedDateInputCommandLayer, overlayCommandLayer } from './CommandLayers'
+import {
+  focusedDateInputCommandLayer,
+  overlayCaptureCommandName,
+  overlayCommandLayer,
+} from './CommandLayers'
 import { parseLocalCalendarDate } from './date'
 
 export const CommandHints = () => {
@@ -26,6 +30,10 @@ export const CommandHints = () => {
         }
 
         const commandName = typeof key.command === 'string' ? key.command : key.command.name
+        if (commandName === overlayCaptureCommandName) {
+          return null
+        }
+
         return (
           <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>
             <text attributes={TextAttributes.BOLD}>{key.display}</text>
@@ -68,7 +76,11 @@ const GoToDateOverlay = () => {
   }, [closeOverlay, goToDate])
 
   useBindings(
-    () => overlayCommandLayer(Overlay.GoToDate(), { close: () => closeOverlay(undefined) }),
+    () =>
+      overlayCommandLayer({
+        overlay: Overlay.GoToDate(),
+        handlers: { close: () => closeOverlay(undefined) },
+      }),
     [closeOverlay],
   )
   useBindings(
@@ -101,7 +113,11 @@ const HelpOverlay = () => {
   const closeOverlay = useAtomSet(closeOverlayAtom)
 
   useBindings(
-    () => overlayCommandLayer(Overlay.Help(), { close: () => closeOverlay(undefined) }),
+    () =>
+      overlayCommandLayer({
+        overlay: Overlay.Help(),
+        handlers: { close: () => closeOverlay(undefined) },
+      }),
     [closeOverlay],
   )
 

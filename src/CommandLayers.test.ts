@@ -25,7 +25,7 @@ describe('contextual command layers', () => {
     return value
   }
 
-  test('gives the top overlay precedence over detail and schedule bindings', () => {
+  test('makes Help modal while allowing only its explicit close keys', () => {
     const keymap = harness()
     const calls: Array<string> = []
 
@@ -49,18 +49,27 @@ describe('contextual command layers', () => {
       }),
     )
     keymap.keymap.registerLayer(
-      overlayCommandLayer(Overlay.Help(), { close: () => calls.push('close-overlay') }),
+      overlayCommandLayer({
+        overlay: Overlay.Help(),
+        handlers: { close: () => calls.push('close-overlay') },
+      }),
     )
+
+    const capturedEvents = ['q', 'p', 'n', 't', 'g', 'left', 'right', 'return'].map((key) =>
+      keymap.host.press(key),
+    )
+
+    expect(calls).toEqual([])
+    expect(capturedEvents.every((event) => event.defaultPrevented)).toBe(true)
 
     keymap.host.press('escape')
     keymap.host.press('?')
-    keymap.host.press('q')
 
-    expect(calls).toEqual(['close-overlay', 'close-overlay', 'quit'])
+    expect(calls).toEqual(['close-overlay', 'close-overlay'])
     expect(keymap.diagnostics.takeErrors().errors).toEqual([])
   })
 
-  test('lets the focused date input own submit and the app quit key', () => {
+  test('lets the focused date input edit, submit, and close without lower commands', () => {
     const keymap = harness()
     const calls: Array<string> = []
     const input = keymap.host.createTarget('date-input')
@@ -79,6 +88,18 @@ describe('contextual command layers', () => {
         openHelp: () => calls.push('help'),
       }),
     )
+    keymap.keymap.registerLayer(
+      detailCommandLayer({
+        back: () => calls.push('back'),
+        openHelp: () => calls.push('detail-help'),
+      }),
+    )
+    keymap.keymap.registerLayer(
+      overlayCommandLayer({
+        overlay: Overlay.GoToDate(),
+        handlers: { close: () => calls.push('close-overlay') },
+      }),
+    )
     keymap.keymap.registerLayer({
       ...focusedDateInputCommandLayer({ submit: () => calls.push('submit-date') }),
       target: input,
@@ -86,14 +107,13 @@ describe('contextual command layers', () => {
     })
     keymap.host.focus(input)
 
-    const quitEvent = keymap.host.press('q')
-    const editEvents = ['p', 'n', 't', 'g', '?', 'left', 'right'].map((key) =>
+    const editEvents = ['q', 'p', 'n', 't', 'g', '?', 'left', 'right'].map((key) =>
       keymap.host.press(key),
     )
     keymap.host.press('return')
+    keymap.host.press('escape')
 
-    expect(calls).toEqual(['submit-date'])
-    expect(quitEvent.defaultPrevented).toBe(false)
+    expect(calls).toEqual(['submit-date', 'close-overlay'])
     expect(editEvents.every((event) => !event.defaultPrevented)).toBe(true)
     expect(keymap.diagnostics.takeErrors().errors).toEqual([])
   })

@@ -52,7 +52,7 @@ export const Overlay = Data.taggedEnum<Overlay>()
 export const selectedDateAtom = Atom.make(now()).pipe(Atom.keepAlive)
 export const selectedOccurrenceAtom = Atom.make<Option.Option<ScheduleOccurrenceRef>>(Option.none())
 export const routeStackAtom = Atom.make<ReadonlyArray<Route>>([Route.Schedule()])
-export const overlayStackAtom = Atom.make<ReadonlyArray<Overlay>>([])
+export const activeOverlayAtom = Atom.make<Option.Option<Overlay>>(Option.none())
 
 const availableOccurrences = (
   schedule: Schedule.Schedule,
@@ -177,12 +177,9 @@ export const popRouteAtom = Atom.fnSync<void>((_, ctx) => {
 })
 
 export const openOverlayAtom = Atom.fnSync<void, Overlay>((overlay, ctx) => {
-  ctx.set(overlayStackAtom, [...ctx(overlayStackAtom), overlay])
+  ctx.set(activeOverlayAtom, Option.some(overlay))
 })
 
 export const closeOverlayAtom = Atom.fnSync<void>((_, ctx) => {
-  const overlays = ctx(overlayStackAtom)
-  if (overlays.length > 0) {
-    ctx.set(overlayStackAtom, overlays.slice(0, -1))
-  }
+  ctx.set(activeOverlayAtom, Option.none())
 })

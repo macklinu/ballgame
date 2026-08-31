@@ -5,18 +5,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 import { useCallback, useRef, useState } from 'react'
 
-import {
-  closeOverlayAtom,
-  goToDateAtom,
-  Overlay,
-  overlayStackAtom,
-  selectedDateAtom,
-} from './AppState'
-import {
-  focusedDateInputCommandLayer,
-  overlayCaptureCommandName,
-  overlayCommandLayer,
-} from './CommandLayers'
+import { closeOverlayAtom, goToDateAtom, Overlay, selectedDateAtom } from './AppState'
 import { parseLocalCalendarDate } from './date'
 
 export const CommandHints = () => {
@@ -30,10 +19,6 @@ export const CommandHints = () => {
         }
 
         const commandName = typeof key.command === 'string' ? key.command : key.command.name
-        if (commandName === overlayCaptureCommandName) {
-          return null
-        }
-
         return (
           <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>
             <text attributes={TextAttributes.BOLD}>{key.display}</text>
@@ -76,18 +61,18 @@ const GoToDateOverlay = () => {
   }, [closeOverlay, goToDate])
 
   useBindings(
-    () =>
-      overlayCommandLayer({
-        overlay: Overlay.GoToDate(),
-        handlers: { close: () => closeOverlay(undefined) },
-      }),
+    () => ({
+      commands: [{ name: 'overlay.dismiss', run: () => closeOverlay(undefined) }],
+      bindings: [{ key: 'escape', cmd: 'overlay.dismiss' }],
+    }),
     [closeOverlay],
   )
   useBindings(
     () => ({
-      ...focusedDateInputCommandLayer({ submit }),
       targetRef: inputRef,
       targetMode: 'focus' as const,
+      commands: [{ name: 'go-to-date.submit', run: submit }],
+      bindings: [{ key: 'return', cmd: 'go-to-date.submit' }],
     }),
     [submit],
   )
@@ -113,11 +98,13 @@ const HelpOverlay = () => {
   const closeOverlay = useAtomSet(closeOverlayAtom)
 
   useBindings(
-    () =>
-      overlayCommandLayer({
-        overlay: Overlay.Help(),
-        handlers: { close: () => closeOverlay(undefined) },
-      }),
+    () => ({
+      commands: [{ name: 'overlay.dismiss', run: () => closeOverlay(undefined) }],
+      bindings: [
+        { key: 'escape', cmd: 'overlay.dismiss' },
+        { key: '?', cmd: 'overlay.dismiss' },
+      ],
+    }),
     [closeOverlay],
   )
 
@@ -130,27 +117,22 @@ const HelpOverlay = () => {
   )
 }
 
-export const OverlayHost = () => {
-  const overlays = useAtomValue(overlayStackAtom)
-  const overlay = overlays.at(-1)
-
-  if (overlay === undefined) {
-    return null
-  }
-
-  return (
-    <box
-      width='100%'
-      height='100%'
-      position='absolute'
-      zIndex={10}
-      alignItems='center'
-      justifyContent='center'
-    >
-      {Overlay.$match(overlay, {
-        GoToDate: () => <GoToDateOverlay />,
-        Help: () => <HelpOverlay />,
-      })}
-    </box>
-  )
-}
+export const OverlayHost = ({ activeOverlay }: { activeOverlay: Option.Option<Overlay> }) =>
+  Option.match(activeOverlay, {
+    onNone: () => null,
+    onSome: (overlay) => (
+      <box
+        width='100%'
+        height='100%'
+        position='absolute'
+        zIndex={10}
+        alignItems='center'
+        justifyContent='center'
+      >
+        {Overlay.$match(overlay, {
+          GoToDate: () => <GoToDateOverlay />,
+          Help: () => <HelpOverlay />,
+        })}
+      </box>
+    ),
+  })

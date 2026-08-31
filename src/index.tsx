@@ -7,11 +7,13 @@ import { createRoot } from '@opentui/react'
 import * as Cause from 'effect/Cause'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as AsyncResult from 'effect/unstable/reactivity/AsyncResult'
 import { type ReactNode, useCallback, useEffect } from 'react'
 
 import {
+  activeOverlayAtom,
   isSelectedOccurrence,
   nextDateAtom,
   openOverlayAtom,
@@ -108,7 +110,7 @@ const DailyGameView = ({
   )
 }
 
-const ScheduleScreen = () => {
+const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
   const date = useAtomValue(selectedDateAtom)
   const scheduleResult = useAtomValue(scheduleForDateAtom(date))
   const previousDate = useAtomSet(previousDateAtom)
@@ -147,8 +149,8 @@ const ScheduleScreen = () => {
   const openHelp = useCallback(() => openOverlay(Overlay.Help()), [openOverlay])
 
   useBindings(
-    () =>
-      scheduleCommandLayer({
+    () => ({
+      ...scheduleCommandLayer({
         previousDate: () => previousDate(undefined),
         nextDate: () => nextDate(undefined),
         today: () => today(undefined),
@@ -158,7 +160,10 @@ const ScheduleScreen = () => {
         openSelectedGame: () => openSelectedGame(undefined),
         openHelp,
       }),
+      enabled: commandsEnabled,
+    }),
     [
+      commandsEnabled,
       nextDate,
       nextOccurrence,
       openHelp,
@@ -202,17 +207,19 @@ const ScheduleScreen = () => {
   )
 }
 
-const GameDetailsShell = () => {
+const GameDetailsShell = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
   const popRoute = useAtomSet(popRouteAtom)
   const openOverlay = useAtomSet(openOverlayAtom)
 
   useBindings(
-    () =>
-      detailCommandLayer({
+    () => ({
+      ...detailCommandLayer({
         back: () => popRoute(undefined),
         openHelp: () => openOverlay(Overlay.Help()),
       }),
-    [openOverlay, popRoute],
+      enabled: commandsEnabled,
+    }),
+    [commandsEnabled, openOverlay, popRoute],
   )
 
   return (
@@ -228,9 +235,14 @@ const GameDetailsShell = () => {
 
 export const App = ({ onQuit }: { onQuit: () => void }) => {
   const routes = useAtomValue(routeStackAtom)
+  const activeOverlay = useAtomValue(activeOverlayAtom)
   const currentRoute = routes.at(-1) ?? Route.Schedule()
+  const commandsEnabled = Option.isNone(activeOverlay)
 
-  useBindings(() => appCommandLayer({ quit: onQuit }), [onQuit])
+  useBindings(
+    () => ({ ...appCommandLayer({ quit: onQuit }), enabled: commandsEnabled }),
+    [commandsEnabled, onQuit],
+  )
 
   return (
     <box
@@ -244,8 +256,8 @@ export const App = ({ onQuit }: { onQuit: () => void }) => {
       position='relative'
     >
       {Route.$match(currentRoute, {
-        Schedule: () => <ScheduleScreen />,
-        GameDetails: () => <GameDetailsShell />,
+        Schedule: () => <ScheduleScreen commandsEnabled={commandsEnabled} />,
+        GameDetails: () => <GameDetailsShell commandsEnabled={commandsEnabled} />,
       })}
       <box marginTop='auto' />
       <box
@@ -258,7 +270,7 @@ export const App = ({ onQuit }: { onQuit: () => void }) => {
       >
         <CommandHints />
       </box>
-      <OverlayHost />
+      <OverlayHost activeOverlay={activeOverlay} />
     </box>
   )
 }

@@ -7,27 +7,31 @@ import { useRenderer } from '@opentui/react'
 import { testRender } from '@opentui/react/test-utils'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 import * as Atom from 'effect/unstable/reactivity/Atom'
 import { act, useMemo } from 'react'
 import { describe, expect } from 'vitest'
 
-import { openOverlayAtom, Overlay, selectedDateAtom } from './AppState'
+import { activeOverlayAtom, openOverlayAtom, Overlay, selectedDateAtom } from './AppState'
 import { appCommandLayer, scheduleCommandLayer } from './CommandLayers'
 import { OverlayHost } from './Overlays'
 
 const fixedDate = DateTime.makeZonedUnsafe({ year: 2025, month: 4, day: 4 }, { timeZone: 'UTC' })
 const isoDateLength = 'YYYY-MM-DD'.length
-const helpBlockedShortcutKeys = ['q', 'p', 'n', 't', 'g', 'left', 'right', 'return'] as const
-const dateInputEditingKeys = ['q', 'p', 'n', 't', 'g', '?', 'left', 'right'] as const
 
 const ScheduleHarness = ({ commands }: { commands: Array<string> }) => {
+  const activeOverlay = useAtomValue(activeOverlayAtom)
   const date = useAtomValue(selectedDateAtom)
   const openOverlay = useAtomSet(openOverlayAtom)
+  const commandsEnabled = Option.isNone(activeOverlay)
 
-  useBindings(() => appCommandLayer({ quit: () => commands.push('quit') }), [commands])
   useBindings(
-    () =>
-      scheduleCommandLayer({
+    () => ({ ...appCommandLayer({ quit: () => commands.push('quit') }), enabled: commandsEnabled }),
+    [commands, commandsEnabled],
+  )
+  useBindings(
+    () => ({
+      ...scheduleCommandLayer({
         previousDate: () => commands.push('previous-date'),
         nextDate: () => commands.push('next-date'),
         today: () => commands.push('today'),
@@ -37,13 +41,15 @@ const ScheduleHarness = ({ commands }: { commands: Array<string> }) => {
         openSelectedGame: () => commands.push('open-game'),
         openHelp: () => openOverlay(Overlay.Help()),
       }),
-    [commands, openOverlay],
+      enabled: commandsEnabled,
+    }),
+    [commands, commandsEnabled, openOverlay],
   )
 
   return (
     <box width='100%' height='100%' position='relative'>
       <text>{`Selected date: ${DateTime.formatIsoDate(date)}`}</text>
-      <OverlayHost />
+      <OverlayHost activeOverlay={activeOverlay} />
     </box>
   )
 }
@@ -83,13 +89,25 @@ const renderedOverlayHarness = overlayHarness.pipe(
   Effect.tap((harness) => Effect.tryPromise(() => harness.renderer.renderOnce())),
 )
 
-const clearDateInput = (renderer: TestRendererSetup, length: number) => {
+const clearDateInput = ({
+  renderer,
+  length,
+}: {
+  readonly renderer: TestRendererSetup
+  readonly length: number
+}) => {
   for (let index = 0; index < length; index += 1) {
     renderer.mockInput.pressBackspace()
   }
 }
 
-const pressShortcut = (renderer: TestRendererSetup, key: string) =>
+const pressKey = ({
+  renderer,
+  key,
+}: {
+  readonly renderer: TestRendererSetup
+  readonly key: string
+}) =>
   act(() => {
     if (key === 'escape') {
       renderer.mockInput.pressEscape()
@@ -101,8 +119,8 @@ const pressShortcut = (renderer: TestRendererSetup, key: string) =>
       return
     }
 
-    if (key === 'left' || key === 'right') {
-      renderer.mockInput.pressArrow(key)
+    if (key === 'backspace') {
+      renderer.mockInput.pressBackspace()
       return
     }
 
@@ -110,127 +128,118 @@ const pressShortcut = (renderer: TestRendererSetup, key: string) =>
   })
 
 describe('overlay interactions', () => {
-  it.effect('makes Help modal and allows only its explicit close keys', () =>
+  it.effect('disables base commands until Help is dismissed', () =>
     Effect.gen(function* () {
       const harness = yield* renderedOverlayHarness
 
-      yield* Effect.sync(() => pressShortcut(harness.renderer, '?'))
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: '?' }))
       const helpFrame = yield* Effect.tryPromise(() =>
         harness.renderer.waitForFrame((frame) => frame.includes('Available commands')),
       )
 
       expect(helpFrame).not.toContain('g schedule.go-to-date')
-      expect(helpFrame).toContain('? overlay.close')
+      expect(helpFrame).toContain('? overlay.dismiss')
 
-      for (const key of helpBlockedShortcutKeys) {
-        yield* Effect.sync(() => pressShortcut(harness.renderer, key))
+      for (const key of ['q', 'p', 'return']) {
+        yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key }))
       }
       yield* Effect.tryPromise(() => harness.renderer.renderOnce())
 
       expect(harness.renderer.captureCharFrame()).toContain('Available commands')
       expect(harness.commands).toEqual([])
 
-      yield* Effect.sync(() => pressShortcut(harness.renderer, '?'))
-      const scheduleFrame = yield* Effect.tryPromise(() =>
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: '?' }))
+      yield* Effect.tryPromise(() =>
         harness.renderer.waitForFrame((frame) => !frame.includes('Available commands')),
       )
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'p' }))
 
-      expect(scheduleFrame).toContain('Selected date: 2025-04-04')
-      expect(harness.commands).toEqual([])
+      expect(harness.commands).toEqual(['previous-date'])
 
-      yield* Effect.sync(() => pressShortcut(harness.renderer, '?'))
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: '?' }))
       yield* Effect.tryPromise(() =>
         harness.renderer.waitForFrame((frame) => frame.includes('Available commands')),
       )
-      yield* Effect.sync(() => pressShortcut(harness.renderer, 'escape'))
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'escape' }))
       const escapedFrame = yield* Effect.tryPromise(() =>
         harness.renderer.waitForFrame((frame) => !frame.includes('Available commands')),
       )
 
       expect(escapedFrame).toContain('Selected date: 2025-04-04')
-      expect(harness.commands).toEqual([])
+      expect(harness.commands).toEqual(['previous-date'])
     }),
   )
 
-  it.effect(
-    'makes Go To Date modal while preserving local editing, submit, and close behavior',
-    () =>
-      Effect.gen(function* () {
-        const harness = yield* renderedOverlayHarness
+  it.effect('edits and submits Go To Date without dispatching base commands', () =>
+    Effect.gen(function* () {
+      const harness = yield* renderedOverlayHarness
 
-        yield* Effect.sync(() => pressShortcut(harness.renderer, 'g'))
-        yield* Effect.tryPromise(() =>
-          harness.renderer.waitForFrame((frame) => frame.includes('Go to date')),
-        )
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'g' }))
+      yield* Effect.tryPromise(() =>
+        harness.renderer.waitForFrame((frame) => frame.includes('Go to date')),
+      )
 
-        for (const key of dateInputEditingKeys) {
-          yield* Effect.sync(() => pressShortcut(harness.renderer, key))
-        }
-        yield* Effect.tryPromise(() => harness.renderer.renderOnce())
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'p' }))
+      const editedFrame = yield* Effect.tryPromise(() =>
+        harness.renderer.waitForFrame((frame) => frame.includes('2025-04-04p')),
+      )
 
-        expect(harness.renderer.captureCharFrame()).toContain('Go to date')
-        expect(harness.renderer.captureCharFrame()).not.toContain('Available commands')
-        expect(harness.commands).toEqual([])
+      expect(editedFrame).toContain('Go to date')
+      expect(harness.commands).toEqual([])
 
-        yield* Effect.tryPromise(() => {
-          return act(() => {
-            clearDateInput(harness.renderer, isoDateLength + dateInputEditingKeys.length)
-            return harness.renderer.mockInput.typeText('2025-02-30')
-          })
+      yield* Effect.sync(() => {
+        act(() => {
+          harness.renderer.mockInput.pressBackspace()
+          clearDateInput({ renderer: harness.renderer, length: isoDateLength })
         })
-        yield* Effect.tryPromise(() =>
-          harness.renderer.waitForFrame((frame) => frame.includes('2025-02-30')),
-        )
-        yield* Effect.sync(() => pressShortcut(harness.renderer, 'return'))
-        const invalidFrame = yield* Effect.tryPromise(() =>
-          harness.renderer.waitForFrame((frame) =>
-            frame.includes('Enter a valid local calendar date.'),
-          ),
-        )
+      })
+      yield* Effect.tryPromise(() => act(() => harness.renderer.mockInput.typeText('2025-02-30')))
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'return' }))
+      const invalidFrame = yield* Effect.tryPromise(() =>
+        harness.renderer.waitForFrame((frame) =>
+          frame.includes('Enter a valid local calendar date.'),
+        ),
+      )
 
-        expect(invalidFrame).toContain('Go to date')
+      expect(invalidFrame).toContain('Go to date')
 
-        yield* Effect.tryPromise(() => {
-          return act(() => {
-            clearDateInput(harness.renderer, isoDateLength)
-            return harness.renderer.mockInput.typeText('2025-04-05')
-          })
-        })
-        const correctedFrame = yield* Effect.tryPromise(() =>
-          harness.renderer.waitForFrame(
-            (frame) =>
-              frame.includes('2025-04-05') && !frame.includes('Enter a valid local calendar date.'),
-          ),
-        )
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'backspace' }))
+      const correctedFrame = yield* Effect.tryPromise(() =>
+        harness.renderer.waitForFrame(
+          (frame) =>
+            frame.includes('2025-02-3') && !frame.includes('Enter a valid local calendar date.'),
+        ),
+      )
 
-        expect(correctedFrame).toContain('Go to date')
+      expect(correctedFrame).toContain('Go to date')
 
-        yield* Effect.sync(() => pressShortcut(harness.renderer, 'return'))
-        const scheduleFrame = yield* Effect.tryPromise(() =>
-          harness.renderer.waitForFrame(
-            (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
-          ),
-        )
+      yield* Effect.sync(() => {
+        act(() => clearDateInput({ renderer: harness.renderer, length: isoDateLength - 1 }))
+      })
+      yield* Effect.tryPromise(() => act(() => harness.renderer.mockInput.typeText('2025-04-05')))
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'return' }))
+      const scheduleFrame = yield* Effect.tryPromise(() =>
+        harness.renderer.waitForFrame(
+          (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
+        ),
+      )
 
-        expect(scheduleFrame).toContain('Selected date: 2025-04-05')
-        expect(harness.commands).toEqual([])
+      expect(scheduleFrame).toContain('Selected date: 2025-04-05')
+      expect(harness.commands).toEqual([])
 
-        yield* Effect.sync(() => pressShortcut(harness.renderer, 'g'))
-        yield* Effect.tryPromise(() =>
-          harness.renderer.waitForFrame((frame) => frame.includes('Go to date')),
-        )
-        yield* Effect.sync(() => pressShortcut(harness.renderer, 'escape'))
-        const escapedFrame = yield* Effect.tryPromise(() =>
-          harness.renderer.waitForFrame(
-            (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
-          ),
-        )
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'g' }))
+      yield* Effect.tryPromise(() =>
+        harness.renderer.waitForFrame((frame) => frame.includes('Go to date')),
+      )
+      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'escape' }))
+      const escapedFrame = yield* Effect.tryPromise(() =>
+        harness.renderer.waitForFrame(
+          (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
+        ),
+      )
 
-        expect(escapedFrame).toContain('Selected date: 2025-04-05')
-        expect(harness.commands).toEqual([])
-
-        yield* Effect.sync(() => pressShortcut(harness.renderer, 'p'))
-        expect(harness.commands).toEqual(['previous-date'])
-      }),
+      expect(escapedFrame).toContain('Selected date: 2025-04-05')
+      expect(harness.commands).toEqual([])
+    }),
   )
 })

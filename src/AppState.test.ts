@@ -5,9 +5,13 @@ import * as AtomRegistry from 'effect/unstable/reactivity/AtomRegistry'
 import { afterEach, describe, expect, test } from 'vitest'
 
 import {
+  activeOverlayAtom,
+  closeOverlayAtom,
   moveSelection,
   goToDateAtom,
+  openOverlayAtom,
   openSelectedGameAtom,
+  Overlay,
   routeStackAtom,
   selectOccurrenceAtom,
   selectedDateAtom,
@@ -144,5 +148,18 @@ describe('application route and occurrence state', () => {
 
     expect(state.get(selectedDateAtom)).toBe(selectedDate)
     expect(state.get(selectedOccurrenceAtom)).toEqual(Option.none())
+  })
+
+  test('replaces the active overlay and clears it when dismissed', () => {
+    const state = registry()
+
+    state.set(openOverlayAtom, Overlay.GoToDate())
+    expect(state.get(activeOverlayAtom)).toEqual(Option.some(Overlay.GoToDate()))
+
+    state.set(openOverlayAtom, Overlay.Help())
+    expect(state.get(activeOverlayAtom)).toEqual(Option.some(Overlay.Help()))
+
+    state.set(closeOverlayAtom, undefined)
+    expect(state.get(activeOverlayAtom)).toEqual(Option.none())
   })
 })

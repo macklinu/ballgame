@@ -18,3 +18,4 @@ GitHub issues define scope and dependencies; implement only the assigned unblock
 # Tests
 
 Keep controlled fixtures typed; reserve `unknown` for intentionally untrusted boundary inputs. Use `toMatchObject` for selected plain public fields and exact assertions for Options, states, errors, and privacy boundaries.
+Import Effect's test runner as `it`; use Vitest `test` for plain tests (do not alias either).

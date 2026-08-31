@@ -1,6 +1,4 @@
-import { it as effectIt } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
-import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as AtomRegistry from 'effect/unstable/reactivity/AtomRegistry'
@@ -9,7 +7,6 @@ import { afterEach, describe, expect, test } from 'vitest'
 import {
   moveSelection,
   goToDateAtom,
-  InvalidLocalCalendarDate,
   openSelectedGameAtom,
   routeStackAtom,
   selectOccurrenceAtom,
@@ -134,28 +131,18 @@ describe('application route and occurrence state', () => {
     ).toEqual(Option.some({ selectedDate: date, gameRef: first.game.ref }))
   })
 
-  effectIt.effect('goes to a valid local calendar date and clears the schedule selection', () =>
-    Effect.gen(function* () {
-      const date = Schedule.ScheduleDate.make('2025-04-05')
-      const state = registry()
+  test('goes to a validated local calendar date and clears the schedule selection', () => {
+    const date = Schedule.ScheduleDate.make('2025-04-05')
+    const selectedDate = DateTime.makeZonedUnsafe(
+      { year: 2025, month: 4, day: 6 },
+      { timeZone: 'UTC' },
+    )
+    const state = registry()
 
-      state.set(selectOccurrenceAtom, occurrence(date, 'game-1'))
-      state.set(goToDateAtom, '2025-04-06')
-      yield* AtomRegistry.getResult(state, goToDateAtom)
+    state.set(selectOccurrenceAtom, occurrence(date, 'game-1'))
+    state.set(goToDateAtom, selectedDate)
 
-      expect(DateTime.formatIsoDate(state.get(selectedDateAtom))).toBe('2025-04-06')
-      expect(state.get(selectedOccurrenceAtom)).toEqual(Option.none())
-    }),
-  )
-
-  effectIt.effect('rejects calendar dates that cannot exist', () =>
-    Effect.gen(function* () {
-      const state = registry()
-
-      state.set(goToDateAtom, '2025-02-30')
-      const error = yield* Effect.flip(AtomRegistry.getResult(state, goToDateAtom))
-
-      expect(error).toEqual(new InvalidLocalCalendarDate({ input: '2025-02-30' }))
-    }),
-  )
+    expect(state.get(selectedDateAtom)).toBe(selectedDate)
+    expect(state.get(selectedOccurrenceAtom)).toEqual(Option.none())
+  })
 })

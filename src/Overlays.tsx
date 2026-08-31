@@ -40,24 +40,26 @@ export const CommandHints = () => {
 const GoToDateOverlay = () => {
   const date = useAtomValue(selectedDateAtom)
   const closeOverlay = useAtomSet(closeOverlayAtom)
-  const goToDate = useAtomSet(goToDateAtom, { mode: 'promise' })
+  const goToDate = useAtomSet(goToDateAtom)
   const inputRef = useRef<InputRenderable>(null)
-  const submitRef = useRef<() => void>(() => {})
   const [value, setValue] = useState(() => DateTime.formatIsoDate(date))
   const [error, setError] = useState<string | undefined>()
 
   const submit = useCallback(() => {
-    const input = inputRef.current?.value ?? value
-    if (Option.isNone(parseLocalCalendarDate(input))) {
+    const input = inputRef.current?.value
+    if (input === undefined) {
+      return
+    }
+
+    const parsedDate = parseLocalCalendarDate(input)
+    if (Option.isNone(parsedDate)) {
       setError('Enter a valid local calendar date.')
       return
     }
 
-    void goToDate(input)
-      .then(() => closeOverlay(undefined))
-      .catch(() => setError('Enter a valid local calendar date.'))
-  }, [closeOverlay, goToDate, value])
-  submitRef.current = submit
+    goToDate(parsedDate.value)
+    closeOverlay(undefined)
+  }, [closeOverlay, goToDate])
 
   useBindings(
     () => overlayCommandLayer(Overlay.GoToDate(), { close: () => closeOverlay(undefined) }),
@@ -65,11 +67,11 @@ const GoToDateOverlay = () => {
   )
   useBindings(
     () => ({
-      ...focusedDateInputCommandLayer({ submit: () => submitRef.current() }),
+      ...focusedDateInputCommandLayer({ submit }),
       targetRef: inputRef,
       targetMode: 'focus' as const,
     }),
-    [],
+    [submit],
   )
 
   return (

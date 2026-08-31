@@ -6,6 +6,10 @@ Run `oxlint` and `oxfmt` with `--disable-nested-config`. Do not allow nested too
 
 Follow the project-scoped `.agents/skills/nub/SKILL.md`.
 
+# Code style
+
+Eagerly read and follow `macklinu-code-style` skill before writing, changing, refactoring, testing, documenting, or reviewing code or dependencies.
+
 # Documentation
 
 Keep documentation concise and scoped to the ticket. Record only reader-facing operational information; link to existing sources instead of adding implementation or recovery narrative.

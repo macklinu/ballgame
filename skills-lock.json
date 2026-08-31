@@ -7,6 +7,12 @@
       "skillPath": "skills/conventional-commit/SKILL.md",
       "computedHash": "f29c9486cede6c7b2df0cfb0a2e4aa67446552b991bcf17d1b309e903171f03d"
     },
+    "macklinu-code-style": {
+      "source": "macklinu/skills",
+      "sourceType": "github",
+      "skillPath": "skills/macklinu-code-style/SKILL.md",
+      "computedHash": "c7a5281a18dd487c7005c0b5707c6b005a85e5136b2e8dc3f25c5262987e6a29"
+    },
     "nub": {
       "source": "nubjs/nub",
       "sourceType": "github",

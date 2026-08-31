@@ -1,5 +1,5 @@
 import { RegistryProvider, useAtomSet, useAtomValue } from '@effect/atom-react'
-import { it as effectIt } from '@effect/vitest'
+import { it } from '@effect/vitest'
 import { createTestRenderer, type TestRendererSetup } from '@opentui/core/testing'
 import { createDefaultOpenTuiKeymap } from '@opentui/keymap/opentui'
 import { KeymapProvider, useBindings } from '@opentui/keymap/react'
@@ -107,7 +107,7 @@ const clearDateInput = (renderer: TestRendererSetup, length: number) => {
 }
 
 describe('overlay interactions', () => {
-  effectIt.effect('derives Help shortcuts from active layers and lets Help own ?', () =>
+  it.effect('derives Help shortcuts from active layers and lets Help own ?', () =>
     Effect.scoped(
       Effect.gen(function* () {
         const harness = yield* renderOverlayHarness()
@@ -132,7 +132,7 @@ describe('overlay interactions', () => {
     ),
   )
 
-  effectIt.effect(
+  it.effect(
     'validates Go To Date locally, dispatches its synchronous action, and keeps schedule commands inactive',
     () =>
       Effect.scoped(

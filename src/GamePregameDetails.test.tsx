@@ -1,4 +1,4 @@
-import { it as effectIt } from '@effect/vitest'
+import { it } from '@effect/vitest'
 import { testRender } from '@opentui/react/test-utils'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
@@ -8,7 +8,7 @@ import * as Game from './Game'
 import { PregameDetails } from './GamePregameDetails'
 
 describe('pregame details', () => {
-  effectIt.effect('renders probable pitchers and an explicit lineup state', () =>
+  it.effect('renders probable pitchers and an explicit lineup state', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>

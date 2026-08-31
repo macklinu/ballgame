@@ -1,10 +1,11 @@
+import { it as effectIt } from '@effect/vitest'
 import { ScrollBoxRenderable } from '@opentui/core'
-/* oxlint-disable effecttsgo/async-function -- OpenTUI's renderer test harness is promise-based. */
 import { testRender } from '@opentui/react/test-utils'
+import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { act, useState } from 'react'
-import { describe, expect, test } from 'vitest'
+import { describe, expect } from 'vitest'
 
 import type { ScheduleOccurrenceRef } from './AppState'
 import * as Game from './Game'
@@ -36,12 +37,6 @@ const homeTeam = Team.Team.make({
 const player = (ref: string, name: string, position: string): Game.Player =>
   Game.Player.make({ ref: Game.PlayerRef.make(ref), name, position: Option.some(position) })
 
-const status = (
-  state: Status.GameState,
-  label: string = state,
-  reason: Option.Option<string> = Option.none(),
-) => Status.GameStatus.make({ state, label, reason })
-
 const game = (gameStatus: Status.GameStatus): Game.Game =>
   Game.Game.make({
     ref: occurrence.gameRef,
@@ -59,7 +54,9 @@ const pitchers = Game.ProbablePitchers.make({
 })
 
 const scheduledOverview = Game.GameOverview.make({
-  game: game(status('Scheduled', 'Scheduled')),
+  game: game(
+    Status.GameStatus.make({ state: 'Scheduled', label: 'Scheduled', reason: Option.none() }),
+  ),
   linescore: Option.none(),
   probablePitchers: pitchers,
   lineups: Option.none(),
@@ -67,7 +64,7 @@ const scheduledOverview = Game.GameOverview.make({
 })
 
 const scoreOverview = Game.GameOverview.make({
-  game: game(status('Final', 'Final')),
+  game: game(Status.GameStatus.make({ state: 'Final', label: 'Final', reason: Option.none() })),
   linescore: Option.some(
     Game.Linescore.make({
       scheduledInnings: Option.some(9),
@@ -148,7 +145,13 @@ const scoreOverview = Game.GameOverview.make({
 })
 
 const postponedOverview = Game.GameOverview.make({
-  game: game(status('Postponed', 'Postponed', Option.some('Rain'))),
+  game: game(
+    Status.GameStatus.make({
+      state: 'Postponed',
+      label: 'Postponed',
+      reason: Option.some('Rain'),
+    }),
+  ),
   linescore: Option.none(),
   probablePitchers: Game.ProbablePitchers.make({ away: Option.none(), home: Option.none() }),
   lineups: Option.none(),
@@ -159,22 +162,13 @@ const refreshedScoreOverview = Game.GameOverview.make({
   ...scoreOverview,
   game: Game.Game.make({
     ...scoreOverview.game,
-    status: status('Final', 'Final (refreshed)'),
+    status: Status.GameStatus.make({
+      state: 'Final',
+      label: 'Final (refreshed)',
+      reason: Option.none(),
+    }),
   }),
 })
-
-const render = async (overview: Game.GameOverview) => {
-  const setup = await testRender(<GameDetails overview={overview} occurrence={occurrence} />, {
-    width: 100,
-    height: 40,
-  })
-  await setup.renderOnce()
-
-  return setup
-}
-
-const destroy = (setup: Awaited<ReturnType<typeof testRender>>) =>
-  act(() => setup.renderer.destroy())
 
 const gameDetailScrollBox = (
   setup: Awaited<ReturnType<typeof testRender>>,
@@ -187,10 +181,19 @@ const gameDetailScrollBox = (
 }
 
 describe('game details', () => {
-  test('renders scheduled context, pitchers, and an explicit lineup state', async () => {
-    const setup = await render(scheduledOverview)
+  effectIt.effect('renders scheduled context, pitchers, and an explicit lineup state', () =>
+    Effect.gen(function* () {
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() =>
+          testRender(<GameDetails overview={scheduledOverview} occurrence={occurrence} />, {
+            width: 100,
+            height: 40,
+          }),
+        ),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
 
-    try {
       const frame = setup.captureCharFrame()
       expect(frame).toContain('Away Club at Home Club')
       expect(frame).toContain('Scheduled for')
@@ -198,34 +201,41 @@ describe('game details', () => {
       expect(frame).toContain('Away Starter (P)')
       expect(frame).toContain('Lineups not announced.')
       expect(frame).toContain('Page Up/Page Down page')
-    } finally {
-      destroy(setup)
-    }
-  })
+    }),
+  )
 
-  test('keeps scheduled details visible in a compact terminal', async () => {
-    const setup = await testRender(
-      <GameDetails overview={scheduledOverview} occurrence={occurrence} />,
-      {
-        width: 80,
-        height: 24,
-      },
-    )
+  effectIt.effect('keeps scheduled details visible in a compact terminal', () =>
+    Effect.gen(function* () {
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() =>
+          testRender(<GameDetails overview={scheduledOverview} occurrence={occurrence} />, {
+            width: 80,
+            height: 24,
+          }),
+        ),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
 
-    try {
-      await setup.renderOnce()
       const frame = setup.captureCharFrame()
       expect(frame).toContain('Probable pitchers')
       expect(frame).toContain('Lineups not announced.')
-    } finally {
-      destroy(setup)
-    }
-  })
+    }),
+  )
 
-  test('renders a linescore and compact available batting and pitching data', async () => {
-    const setup = await render(scoreOverview)
+  effectIt.effect('renders a linescore and compact available batting and pitching data', () =>
+    Effect.gen(function* () {
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() =>
+          testRender(<GameDetails overview={scoreOverview} occurrence={occurrence} />, {
+            width: 100,
+            height: 40,
+          }),
+        ),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
 
-    try {
       const frame = setup.captureCharFrame()
       expect(frame).toContain('Inning linescore')
       expect(frame).toContain('AWY')
@@ -235,15 +245,22 @@ describe('game details', () => {
       expect(frame).toContain('Pitching')
       expect(frame).toContain('Away Pitcher')
       expect(frame).toContain('Home Club pitching unavailable.')
-    } finally {
-      destroy(setup)
-    }
-  })
+    }),
+  )
 
-  test('renders non-score-bearing status without invented score or stat sections', async () => {
-    const setup = await render(postponedOverview)
+  effectIt.effect('renders non-score-bearing status without invented score or stat sections', () =>
+    Effect.gen(function* () {
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() =>
+          testRender(<GameDetails overview={postponedOverview} occurrence={occurrence} />, {
+            width: 100,
+            height: 40,
+          }),
+        ),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
 
-    try {
       const frame = setup.captureCharFrame()
       expect(frame).toContain('Postponed')
       expect(frame).toContain('Reason: Rain')
@@ -251,58 +268,59 @@ describe('game details', () => {
       expect(frame).not.toContain('Inning linescore')
       expect(frame).not.toContain('Batting')
       expect(frame).not.toContain('Pitching')
-    } finally {
-      destroy(setup)
-    }
-  })
+    }),
+  )
 
-  test('returns to the board when Escape reaches the focused scrollbox', async () => {
-    let backCount = 0
-    const setup = await testRender(
-      <GameDetails
-        overview={scoreOverview}
-        occurrence={occurrence}
-        onBack={() => {
-          backCount += 1
-        }}
-      />,
-      { width: 100, height: 18, kittyKeyboard: true },
-    )
+  effectIt.effect('returns to the board when Escape reaches the focused scrollbox', () =>
+    Effect.gen(function* () {
+      let backCount = 0
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() =>
+          testRender(
+            <GameDetails
+              overview={scoreOverview}
+              occurrence={occurrence}
+              onBack={() => {
+                backCount += 1
+              }}
+            />,
+            { width: 100, height: 18, kittyKeyboard: true },
+          ),
+        ),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
+      yield* Effect.sync(() => gameDetailScrollBox(setup).focus())
+      yield* Effect.sync(() => setup.mockInput.pressEscape())
 
-    try {
-      await setup.renderOnce()
-      gameDetailScrollBox(setup).focus()
-      setup.mockInput.pressEscape()
       expect(backCount).toBe(1)
-    } finally {
-      destroy(setup)
-    }
-  })
+    }),
+  )
 
-  test('preserves the mounted scrollbox position through a refreshed snapshot', async () => {
-    let refresh: () => void = () => {}
+  effectIt.effect('preserves the mounted scrollbox position through a refreshed snapshot', () =>
+    Effect.gen(function* () {
+      let refresh: () => void = () => {}
 
-    const RefreshableDetails = () => {
-      const [overview, setOverview] = useState(scoreOverview)
-      refresh = () => setOverview(refreshedScoreOverview)
-      return <GameDetails overview={overview} occurrence={occurrence} isRefreshing />
-    }
-    const setup = await testRender(<RefreshableDetails />, { width: 100, height: 18 })
-
-    try {
-      await setup.renderOnce()
+      const RefreshableDetails = () => {
+        const [overview, setOverview] = useState(scoreOverview)
+        refresh = () => setOverview(refreshedScoreOverview)
+        return <GameDetails overview={overview} occurrence={occurrence} isRefreshing />
+      }
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() => testRender(<RefreshableDetails />, { width: 100, height: 18 })),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
       const scrollbox = gameDetailScrollBox(setup)
-      scrollbox.scrollBy(4)
-      await setup.renderOnce()
+      yield* Effect.sync(() => scrollbox.scrollBy(4))
+      yield* Effect.tryPromise(() => setup.renderOnce())
 
-      act(refresh)
-      await setup.renderOnce()
+      yield* Effect.sync(() => act(refresh))
+      yield* Effect.tryPromise(() => setup.renderOnce())
 
       expect(gameDetailScrollBox(setup)).toBe(scrollbox)
       expect(scrollbox.scrollTop).toBeGreaterThan(0)
       expect(setup.captureCharFrame()).toContain('Final (refreshed)')
-    } finally {
-      destroy(setup)
-    }
-  })
+    }),
+  )
 })

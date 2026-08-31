@@ -1,4 +1,4 @@
-import { it as effectIt } from '@effect/vitest'
+import { it } from '@effect/vitest'
 import { testRender } from '@opentui/react/test-utils'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
@@ -31,7 +31,7 @@ const game = Game.Game.make({
 })
 
 describe('boxscore details', () => {
-  effectIt.effect('renders a linescore and available and unavailable table sections', () =>
+  it.effect('renders a linescore and available and unavailable table sections', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>

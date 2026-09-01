@@ -13,13 +13,19 @@ const optionText = <A extends string | number>(value: Option.Option<A>): string 
 const abbreviated = (value: string, width: number): string =>
   value.length <= width ? value : `${value.slice(0, Math.max(width - 1, 0))}…`
 
-const cell = (value: string, width: number, align: 'left' | 'right' = 'right'): string =>
-  align === 'left'
-    ? abbreviated(value, width).padEnd(width)
-    : abbreviated(value, width).padStart(width)
+const Cell = ({
+  value,
+  width,
+  align = 'right',
+}: {
+  readonly value: string
+  readonly width: number
+  readonly align?: 'left' | 'right'
+}) => {
+  const content = abbreviated(value, width)
 
-const line = (values: ReadonlyArray<readonly [string, number, 'left' | 'right']>): string =>
-  values.map(([value, width, align]) => cell(value, width, align)).join(' ')
+  return <span>{align === 'left' ? content.padEnd(width) : content.padStart(width)}</span>
+}
 
 const isBoxscoreGame = (status: Status.GameStatus): boolean =>
   Status.isScoreBearing(status) ||
@@ -37,19 +43,40 @@ const Linescore = ({ game, linescore }: Pick<BoxscoreDetailsProps, 'game' | 'lin
     ),
     onSome: (availableLinescore) => {
       const innings = availableLinescore.innings
-      const inningHeader = innings.map((inning) => cell(String(inning.number), 2)).join(' ')
-      const inningValues = (team: 'away' | 'home') =>
-        innings.map((inning) => cell(optionText(inning[team].runs), 2)).join(' ')
-      const total = (team: 'away' | 'home') => {
-        const values = availableLinescore[team]
-        return `${cell(optionText(values.runs), 2)} ${cell(optionText(values.hits), 2)} ${cell(optionText(values.errors), 2)}`
-      }
 
       return (
         <box flexDirection='column' borderStyle='single' title='Inning linescore' padding={1}>
-          <text>{`Team ${inningHeader} |  R  H  E`}</text>
-          <text>{`${cell(game.awayTeam.abbreviation, 4, 'left')} ${inningValues('away')} | ${total('away')}`}</text>
-          <text>{`${cell(game.homeTeam.abbreviation, 4, 'left')} ${inningValues('home')} | ${total('home')}`}</text>
+          <text>
+            <Cell value='Team' width={4} align='left' />{' '}
+            {innings.map((inning) => (
+              <span key={inning.number}>
+                <Cell value={String(inning.number)} width={2} />{' '}
+              </span>
+            ))}
+            | <Cell value='R' width={2} /> <Cell value='H' width={2} /> <Cell value='E' width={2} />
+          </text>
+          <text>
+            <Cell value={game.awayTeam.abbreviation} width={4} align='left' />{' '}
+            {innings.map((inning) => (
+              <span key={inning.number}>
+                <Cell value={optionText(inning.away.runs)} width={2} />{' '}
+              </span>
+            ))}
+            | <Cell value={optionText(availableLinescore.away.runs)} width={2} />{' '}
+            <Cell value={optionText(availableLinescore.away.hits)} width={2} />{' '}
+            <Cell value={optionText(availableLinescore.away.errors)} width={2} />
+          </text>
+          <text>
+            <Cell value={game.homeTeam.abbreviation} width={4} align='left' />{' '}
+            {innings.map((inning) => (
+              <span key={inning.number}>
+                <Cell value={optionText(inning.home.runs)} width={2} />{' '}
+              </span>
+            ))}
+            | <Cell value={optionText(availableLinescore.home.runs)} width={2} />{' '}
+            <Cell value={optionText(availableLinescore.home.hits)} width={2} />{' '}
+            <Cell value={optionText(availableLinescore.home.errors)} width={2} />
+          </text>
         </box>
       )
     },
@@ -70,31 +97,22 @@ const BattingTable = ({
     <box flexDirection='column'>
       <text>{team}</text>
       <text>
-        {line([
-          ['Player', 18, 'left'],
-          ['Pos', 3, 'left'],
-          ['AB', 2, 'right'],
-          ['R', 2, 'right'],
-          ['H', 2, 'right'],
-          ['RBI', 3, 'right'],
-          ['BB', 2, 'right'],
-          ['SO', 2, 'right'],
-          ['HR', 2, 'right'],
-        ])}
+        <Cell value='Player' width={18} align='left' /> <Cell value='Pos' width={3} align='left' />{' '}
+        <Cell value='AB' width={2} /> <Cell value='R' width={2} /> <Cell value='H' width={2} />{' '}
+        <Cell value='RBI' width={3} /> <Cell value='BB' width={2} /> <Cell value='SO' width={2} />{' '}
+        <Cell value='HR' width={2} />
       </text>
       {lines.map(({ player, stats }) => (
         <text key={player.ref}>
-          {line([
-            [player.name, 18, 'left'],
-            [optionText(player.position), 3, 'left'],
-            [optionText(stats.atBats), 2, 'right'],
-            [optionText(stats.runs), 2, 'right'],
-            [optionText(stats.hits), 2, 'right'],
-            [optionText(stats.runsBattedIn), 3, 'right'],
-            [optionText(stats.walks), 2, 'right'],
-            [optionText(stats.strikeOuts), 2, 'right'],
-            [optionText(stats.homeRuns), 2, 'right'],
-          ])}
+          <Cell value={player.name} width={18} align='left' />{' '}
+          <Cell value={optionText(player.position)} width={3} align='left' />{' '}
+          <Cell value={optionText(stats.atBats)} width={2} />{' '}
+          <Cell value={optionText(stats.runs)} width={2} />{' '}
+          <Cell value={optionText(stats.hits)} width={2} />{' '}
+          <Cell value={optionText(stats.runsBattedIn)} width={3} />{' '}
+          <Cell value={optionText(stats.walks)} width={2} />{' '}
+          <Cell value={optionText(stats.strikeOuts)} width={2} />{' '}
+          <Cell value={optionText(stats.homeRuns)} width={2} />
         </text>
       ))}
     </box>
@@ -116,29 +134,20 @@ const PitchingTable = ({
     <box flexDirection='column'>
       <text>{team}</text>
       <text>
-        {line([
-          ['Player', 18, 'left'],
-          ['IP', 3, 'right'],
-          ['H', 2, 'right'],
-          ['R', 2, 'right'],
-          ['ER', 2, 'right'],
-          ['BB', 2, 'right'],
-          ['SO', 2, 'right'],
-          ['HR', 2, 'right'],
-        ])}
+        <Cell value='Player' width={18} align='left' /> <Cell value='IP' width={3} />{' '}
+        <Cell value='H' width={2} /> <Cell value='R' width={2} /> <Cell value='ER' width={2} />{' '}
+        <Cell value='BB' width={2} /> <Cell value='SO' width={2} /> <Cell value='HR' width={2} />
       </text>
       {lines.map(({ player, stats }) => (
         <text key={player.ref}>
-          {line([
-            [player.name, 18, 'left'],
-            [optionText(stats.inningsPitched), 3, 'right'],
-            [optionText(stats.hits), 2, 'right'],
-            [optionText(stats.runs), 2, 'right'],
-            [optionText(stats.earnedRuns), 2, 'right'],
-            [optionText(stats.walks), 2, 'right'],
-            [optionText(stats.strikeOuts), 2, 'right'],
-            [optionText(stats.homeRuns), 2, 'right'],
-          ])}
+          <Cell value={player.name} width={18} align='left' />{' '}
+          <Cell value={optionText(stats.inningsPitched)} width={3} />{' '}
+          <Cell value={optionText(stats.hits)} width={2} />{' '}
+          <Cell value={optionText(stats.runs)} width={2} />{' '}
+          <Cell value={optionText(stats.earnedRuns)} width={2} />{' '}
+          <Cell value={optionText(stats.walks)} width={2} />{' '}
+          <Cell value={optionText(stats.strikeOuts)} width={2} />{' '}
+          <Cell value={optionText(stats.homeRuns)} width={2} />
         </text>
       ))}
     </box>

@@ -5,18 +5,13 @@ import * as Option from 'effect/Option'
 
 import type { ScheduleOccurrenceRef } from './AppState'
 import * as Game from './Game'
+import { PregameDetails } from './GamePregameDetails'
 import * as Status from './Status'
 
 const unavailable = '—'
 
 const optionText = <A extends string | number>(value: Option.Option<A>): string =>
   Option.getOrElse(Option.map(value, String), () => unavailable)
-
-const displayName = (player: Game.Player): string =>
-  Option.match(player.position, {
-    onNone: () => player.name,
-    onSome: (position) => `${player.name} (${position})`,
-  })
 
 const abbreviated = (value: string, width: number): string =>
   value.length <= width ? value : `${value.slice(0, Math.max(width - 1, 0))}…`
@@ -45,49 +40,6 @@ const ScheduledContext = ({ overview, occurrence }: GameDetailsProps) => (
     <text attributes={TextAttributes.DIM}>Selected schedule: {occurrence.selectedDate}</text>
   </box>
 )
-
-const ProbablePitchers = ({ pitchers }: { pitchers: Game.ProbablePitchers }) => (
-  <box flexDirection='column' gap={1} borderStyle='single' title='Probable pitchers' padding={1}>
-    <text>
-      Away: {Option.match(pitchers.away, { onNone: () => 'Not announced', onSome: displayName })}
-    </text>
-    <text>
-      Home: {Option.match(pitchers.home, { onNone: () => 'Not announced', onSome: displayName })}
-    </text>
-  </box>
-)
-
-const Lineup = ({ players, team }: { players: ReadonlyArray<Game.LineupPlayer>; team: string }) => {
-  if (players.length === 0) {
-    return <text attributes={TextAttributes.DIM}>{team} lineup unavailable.</text>
-  }
-
-  return (
-    <box flexDirection='column' gap={0}>
-      <text>{team}</text>
-      {players.map((entry) => (
-        <text key={entry.player.ref}>
-          {optionText(entry.battingOrder)}. {displayName(entry.player)}
-        </text>
-      ))}
-    </box>
-  )
-}
-
-const Lineups = ({ overview }: { overview: Game.GameOverview }) =>
-  Option.match(overview.lineups, {
-    onNone: () => (
-      <box flexDirection='column' borderStyle='single' title='Lineups' padding={1}>
-        <text attributes={TextAttributes.DIM}>Lineups not announced.</text>
-      </box>
-    ),
-    onSome: (lineups) => (
-      <box flexDirection='column' gap={1} borderStyle='single' title='Lineups' padding={1}>
-        <Lineup players={lineups.away} team={overview.game.awayTeam.name} />
-        <Lineup players={lineups.home} team={overview.game.homeTeam.name} />
-      </box>
-    ),
-  })
 
 const Linescore = ({ overview }: { overview: Game.GameOverview }) =>
   Option.match(overview.linescore, {
@@ -294,10 +246,12 @@ export const GameDetails = ({
         }}
       >
         {pregame ? (
-          <>
-            <ProbablePitchers pitchers={overview.probablePitchers} />
-            <Lineups overview={overview} />
-          </>
+          <PregameDetails
+            awayTeamName={game.awayTeam.name}
+            homeTeamName={game.homeTeam.name}
+            probablePitchers={overview.probablePitchers}
+            lineups={overview.lineups}
+          />
         ) : null}
         {boxscoreGame ? (
           <>

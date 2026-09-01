@@ -1,4 +1,5 @@
 import * as Context from 'effect/Context'
+import * as Data from 'effect/Data'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
@@ -55,19 +56,15 @@ export const Schedule = Schema.Struct({
   occurrences: Schema.Array(ScheduleOccurrence),
 })
 
-export const hasNonTerminalGame = (schedule: Schedule): boolean =>
+/** Whether this slate needs a live refresh rather than a one-time fetch. */
+export const hasActivelyInProgressGame = (schedule: Schedule): boolean =>
   schedule.occurrences.some(
     (occurrence) =>
-      isAvailableScheduleOccurrence(occurrence) && !Status.isTerminal(occurrence.game.status),
+      isAvailableScheduleOccurrence(occurrence) &&
+      Status.isActivelyInProgress(occurrence.game.status),
   )
 
-export class ScheduleUnavailable extends Schema.TaggedError<ScheduleUnavailable>()(
-  'ScheduleUnavailable',
-  {
-    operation: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {}
+export class ScheduleUnavailable extends Data.TaggedError('ScheduleUnavailable') {}
 
 export interface ScheduleServiceApi {
   readonly get: (date: DateTime.DateTime) => Effect.Effect<Schedule, ScheduleUnavailable>

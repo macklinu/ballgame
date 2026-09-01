@@ -112,22 +112,25 @@ describe('game contracts', () => {
     })
   })
 
-  test('continues polling a schedule with a non-terminal game', () => {
-    const date = Schedule.ScheduleDate.make('2025-04-05')
-    const schedule = Schedule.Schedule.make({
-      date,
-      occurrences: [availableOccurrence(date, 'game-scheduled', status('Scheduled'))],
-    })
+  test.each(['Warmup', 'Active', 'Delayed', 'UnderReview'] as const)(
+    'polls a schedule with a %s game',
+    (state) => {
+      const date = Schedule.ScheduleDate.make('2025-04-05')
+      const schedule = Schedule.Schedule.make({
+        date,
+        occurrences: [availableOccurrence(date, 'game-active', status(state))],
+      })
 
-    expect(Schedule.hasNonTerminalGame(schedule)).toBe(true)
-  })
+      expect(Schedule.hasActivelyInProgressGame(schedule)).toBe(true)
+    },
+  )
 
-  test('stops polling after terminal games despite unavailable occurrences', () => {
+  test('does not poll scheduled or unavailable occurrences', () => {
     const date = Schedule.ScheduleDate.make('2025-04-05')
     const schedule = Schedule.Schedule.make({
       date,
       occurrences: [
-        availableOccurrence(date, 'game-final', status('Final')),
+        availableOccurrence(date, 'game-scheduled', status('Scheduled')),
         Schedule.UnavailableScheduleOccurrence.make({
           selectedDate: date,
           message: 'Game data unavailable',
@@ -138,6 +141,6 @@ describe('game contracts', () => {
       ],
     })
 
-    expect(Schedule.hasNonTerminalGame(schedule)).toBe(false)
+    expect(Schedule.hasActivelyInProgressGame(schedule)).toBe(false)
   })
 })

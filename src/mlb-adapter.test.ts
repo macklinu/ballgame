@@ -164,7 +164,7 @@ const makeupGameWithInstantField = (): ProviderGameFixture => ({
 })
 
 /** This is the sole crossing from typed synthetic fixtures to the untrusted adapter input. */
-const rawSchedulePayload = (games: ReadonlyArray<unknown>): unknown => ({ dates: [{ games }] })
+const rawSchedulePayload = <T>(games: ReadonlyArray<T>) => ({ dates: [{ games }] })
 
 const mapPayload = (payload: unknown) => MlbAdapter.mapScheduleForTest(selectedDate, payload)
 
@@ -560,8 +560,7 @@ describe('MLB adapter boundary', () => {
   it.effect('uses an application error only when the daily slate cannot be decoded', () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(mapPayload(malformedDailySlate()))
-      expect(failure._tag).toBe('ScheduleUnavailable')
-      expect(failure.operation).toBe('MlbSchedule.decode')
+      expect(failure).toEqual(new Schedule.ScheduleUnavailable())
     }),
   )
 

@@ -30,6 +30,11 @@ const game = Game.Game.make({
   score: Option.none(),
 })
 
+const activeGame = Game.Game.make({
+  ...game,
+  status: Status.GameStatus.make({ state: 'Active', label: 'Top 1st', reason: Option.none() }),
+})
+
 describe('boxscore details', () => {
   it.effect('renders a linescore and available and unavailable table sections', () =>
     Effect.gen(function* () {
@@ -138,6 +143,31 @@ describe('boxscore details', () => {
       expect(frame).toContain('Pitching')
       expect(frame).toContain('Away Pitcher')
       expect(frame).toContain('Home Club pitching unavailable.')
+    }),
+  )
+
+  it.effect('renders score-bearing sections for an active game', () =>
+    Effect.gen(function* () {
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() =>
+          testRender(
+            <BoxscoreDetails
+              game={activeGame}
+              linescore={Option.none()}
+              boxscore={Option.none()}
+            />,
+            { width: 80, height: 16 },
+          ),
+        ),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
+
+      const frame = setup.captureCharFrame()
+      expect(frame).toContain('Inning linescore')
+      expect(frame).toContain('Linescore unavailable.')
+      expect(frame).toContain('Batting unavailable.')
+      expect(frame).toContain('Pitching unavailable.')
     }),
   )
 })

@@ -1,4 +1,4 @@
-import { it as effectIt } from '@effect/vitest'
+import { it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
@@ -358,7 +358,7 @@ const noScore: Option.Option<Game.Score> = Option.none()
 const score: Option.Option<Game.Score> = Option.some(Game.Score.make({ away: 1, home: 2 }))
 
 describe('MLB adapter boundary', () => {
-  effectIt.effect('maps only normalized public game fields', () => {
+  it.effect('maps only normalized public game fields', () => {
     const input = allStarFinalWithRainDelay()
 
     return Effect.gen(function* () {
@@ -377,7 +377,7 @@ describe('MLB adapter boundary', () => {
     })
   })
 
-  effectIt.effect.each([
+  it.effect.each([
     { raw: 'S', expected: 'SpringTraining' },
     { raw: 'E', expected: 'Exhibition' },
     { raw: 'R', expected: 'RegularSeason' },
@@ -392,7 +392,7 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect.each([
+  it.effect.each([
     {
       name: 'scheduled',
       scenario: 'Scheduled',
@@ -488,7 +488,7 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect('keeps a future game when optional schedule metadata is partial', () =>
+  it.effect('keeps a future game when optional schedule metadata is partial', () =>
     Effect.gen(function* () {
       const occurrence = yield* mapAvailable(futureGameWithPartialScheduleMetadata())
 
@@ -503,7 +503,7 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect.each([
+  it.effect.each([
     {
       name: 'string-date fields',
       original: postponedGameWithDateField,
@@ -534,7 +534,7 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect('keeps the daily slate in the success channel when one game is malformed', () =>
+  it.effect('keeps the daily slate in the success channel when one game is malformed', () =>
     Effect.gen(function* () {
       const schedule = yield* mapPayload(
         rawSchedulePayload([scheduledGame(), malformedGame(), finalGame(778444)]),
@@ -557,7 +557,7 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect('uses an application error only when the daily slate cannot be decoded', () =>
+  it.effect('uses an application error only when the daily slate cannot be decoded', () =>
     Effect.gen(function* () {
       const failure = yield* Effect.flip(mapPayload(malformedDailySlate()))
       expect(failure._tag).toBe('ScheduleUnavailable')
@@ -565,7 +565,7 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
-  effectIt.effect(
+  it.effect(
     'fetches a normalized overview with linescore, starters, lineup, and standard boxscore',
     () => {
       const adapter = makeLiveAdapter(finalGame(), JSON.stringify(fullGameFeed()))
@@ -634,7 +634,7 @@ describe('MLB adapter boundary', () => {
     },
   )
 
-  effectIt.effect('retains partial live linescore data without inventing missing values', () => {
+  it.effect('retains partial live linescore data without inventing missing values', () => {
     const partialLinescore: ProviderLinescoreFixture = {
       teams: { away: { runs: 3 } },
     }
@@ -671,7 +671,7 @@ describe('MLB adapter boundary', () => {
     })
   })
 
-  effectIt.effect('keeps a cancelled game useful without inventing a score or boxscore', () => {
+  it.effect('keeps a cancelled game useful without inventing a score or boxscore', () => {
     const cancelledStatus: ProviderStatusFixture = {
       ...providerStatuses.Cancelled,
       reason: 'Rain',
@@ -710,7 +710,7 @@ describe('MLB adapter boundary', () => {
     })
   })
 
-  effectIt.effect('rejects a successful response for another game', () => {
+  it.effect('rejects a successful response for another game', () => {
     const adapter = makeLiveAdapter(
       scheduledGame(),
       JSON.stringify(fullGameFeed({ feedGamePk: 999999, gameDataPk: 999999 })),
@@ -723,7 +723,7 @@ describe('MLB adapter boundary', () => {
     })
   })
 
-  effectIt.effect('rejects a malformed successful feed that lacks meaningful game metadata', () => {
+  it.effect('rejects a malformed successful feed that lacks meaningful game metadata', () => {
     const malformedFeed: unknown = { gamePk: 778443, gameData: {}, liveData: {} }
     const adapter = makeLiveAdapter(scheduledGame(), JSON.stringify(malformedFeed))
 

@@ -1,5 +1,3 @@
-import type { Overlay } from './AppState'
-
 export interface AppCommandHandlers {
   readonly quit: () => void
 }
@@ -18,14 +16,6 @@ export interface ScheduleCommandHandlers {
 export interface DetailCommandHandlers {
   readonly back: () => void
   readonly openHelp: () => void
-}
-
-export interface OverlayCommandHandlers {
-  readonly close: () => void
-}
-
-export interface DateInputCommandHandlers {
-  readonly submit: () => void
 }
 
 export const appCommandLayer = (handlers: AppCommandHandlers) => ({
@@ -67,30 +57,5 @@ export const detailCommandLayer = (handlers: DetailCommandHandlers) => ({
   bindings: [
     { key: 'escape', cmd: 'detail.back' },
     { key: '?', cmd: 'detail.help' },
-  ],
-})
-
-export const overlayCommandLayer = (overlay: Overlay, handlers: OverlayCommandHandlers) => ({
-  priority: 200,
-  commands: [
-    { name: 'overlay.close', run: handlers.close },
-    { name: 'overlay.close-help', run: handlers.close },
-  ],
-  bindings: [
-    { key: 'escape', cmd: 'overlay.close' },
-    ...(overlay._tag === 'Help' ? [{ key: '?', cmd: 'overlay.close-help' }] : []),
-  ],
-})
-
-/** Consumes the app-level quit key while the date editor owns text input. */
-export const focusedDateInputCommandLayer = (handlers: DateInputCommandHandlers) => ({
-  priority: 300,
-  commands: [
-    { name: 'date-input.submit', run: handlers.submit },
-    { name: 'date-input.edit', run() {} },
-  ],
-  bindings: [
-    { key: 'return', cmd: 'date-input.submit' },
-    { key: 'q', cmd: 'date-input.edit', preventDefault: false },
   ],
 })

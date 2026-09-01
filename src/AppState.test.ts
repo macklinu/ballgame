@@ -1,13 +1,20 @@
+import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as AtomRegistry from 'effect/unstable/reactivity/AtomRegistry'
 import { afterEach, describe, expect, test } from 'vitest'
 
 import {
+  activeOverlayAtom,
+  closeOverlayAtom,
   moveSelection,
+  goToDateAtom,
+  openOverlayAtom,
   openSelectedGameAtom,
+  Overlay,
   routeStackAtom,
   selectOccurrenceAtom,
+  selectedDateAtom,
   selectedOccurrenceAtom,
   synchronizeSelectionAtom,
 } from './AppState'
@@ -126,5 +133,33 @@ describe('application route and occurrence state', () => {
         'previous',
       ),
     ).toEqual(Option.some({ selectedDate: date, gameRef: first.game.ref }))
+  })
+
+  test('goes to a validated local calendar date and clears the schedule selection', () => {
+    const date = Schedule.ScheduleDate.make('2025-04-05')
+    const selectedDate = DateTime.makeZonedUnsafe(
+      { year: 2025, month: 4, day: 6 },
+      { timeZone: 'UTC' },
+    )
+    const state = registry()
+
+    state.set(selectOccurrenceAtom, occurrence(date, 'game-1'))
+    state.set(goToDateAtom, selectedDate)
+
+    expect(state.get(selectedDateAtom)).toBe(selectedDate)
+    expect(state.get(selectedOccurrenceAtom)).toEqual(Option.none())
+  })
+
+  test('replaces the active overlay and clears it when dismissed', () => {
+    const state = registry()
+
+    state.set(openOverlayAtom, Overlay.GoToDate())
+    expect(state.get(activeOverlayAtom)).toEqual(Option.some(Overlay.GoToDate()))
+
+    state.set(openOverlayAtom, Overlay.Help())
+    expect(state.get(activeOverlayAtom)).toEqual(Option.some(Overlay.Help()))
+
+    state.set(closeOverlayAtom, undefined)
+    expect(state.get(activeOverlayAtom)).toEqual(Option.none())
   })
 })

@@ -38,7 +38,7 @@ const activeGame = Game.Game.make({
 describe('boxscore details', () => {
   it.effect('renders a linescore and available and unavailable table sections', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: (
           <BoxscoreDetails
             game={game}
@@ -145,7 +145,7 @@ describe('boxscore details', () => {
 
   it.effect('renders score-bearing sections for an active game', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: (
           <BoxscoreDetails game={activeGame} linescore={Option.none()} boxscore={Option.none()} />
         ),

@@ -10,7 +10,7 @@ import * as OpenTuiTest from './OpenTuiTest'
 describe('pregame details', () => {
   it.effect('renders probable pitchers and an unannounced lineup state', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: (
           <PregameDetails
             awayTeamName='Away Club'
@@ -42,7 +42,7 @@ describe('pregame details', () => {
 
   it.effect('renders available lineups', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: (
           <PregameDetails
             awayTeamName='Away Club'

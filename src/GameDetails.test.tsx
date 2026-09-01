@@ -187,7 +187,7 @@ const gameDetailScrollBox = (ui: OpenTuiTest.Harness) =>
 describe('game details', () => {
   it.effect('renders scheduled context and pregame sections', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: <GameDetails overview={scheduledOverview} occurrence={occurrence} />,
         options: { width: 100, height: 40 },
       })
@@ -204,7 +204,7 @@ describe('game details', () => {
 
   it.effect('keeps scheduled details visible in a compact terminal', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: <GameDetails overview={scheduledOverview} occurrence={occurrence} />,
         options: { width: 80, height: 24 },
       })
@@ -217,7 +217,7 @@ describe('game details', () => {
 
   it.effect('renders score-bearing sections', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: <GameDetails overview={scoreOverview} occurrence={occurrence} />,
         options: { width: 100, height: 40 },
       })
@@ -232,7 +232,7 @@ describe('game details', () => {
 
   it.effect('keeps an active snapshot visible when its refresh is unavailable', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: (
           <GameDetails overview={activeOverview} occurrence={occurrence} isRefreshUnavailable />
         ),
@@ -249,7 +249,7 @@ describe('game details', () => {
 
   it.effect('renders non-score-bearing status without invented score or stat sections', () =>
     Effect.gen(function* () {
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: <GameDetails overview={postponedOverview} occurrence={occurrence} />,
         options: { width: 100, height: 40 },
       })
@@ -268,7 +268,7 @@ describe('game details', () => {
   it.effect('returns to the board when Escape reaches the focused scrollbox', () =>
     Effect.gen(function* () {
       let backCount = 0
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: (
           <GameDetails
             overview={scoreOverview}
@@ -299,7 +299,7 @@ describe('game details', () => {
         refresh = () => setOverview(refreshedScoreOverview)
         return <GameDetails overview={overview} occurrence={occurrence} />
       }
-      const ui = yield* OpenTuiTest.render({
+      const ui = yield* OpenTuiTest.make({
         node: <RefreshableDetails />,
         options: { width: 100, height: 18 },
       })

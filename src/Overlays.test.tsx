@@ -67,7 +67,7 @@ const KeymapHarness = ({ commands }: { commands: Array<string> }) => {
 
 const overlayHarness = Effect.gen(function* () {
   const commands: Array<string> = []
-  const ui = yield* OpenTuiTest.render({
+  const ui = yield* OpenTuiTest.make({
     node: (
       <RegistryProvider initialValues={[Atom.initialValue(selectedDateAtom, fixedDate)]}>
         <KeymapHarness commands={commands} />

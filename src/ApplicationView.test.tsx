@@ -34,23 +34,21 @@ const failureResult = AsyncResult.failure<ScheduleResource.ScheduleRefresh>(
   Cause.die(defectMessage),
 )
 
-const applicationHarness = OpenTuiTest.render({
-  node: (
-    <RegistryProvider
-      initialValues={[
-        Atom.initialValue(selectedDateAtom, fixedDate),
-        Atom.initialValue(ScheduleResource.scheduleForDateAtom(fixedDate), failureResult),
-      ]}
-    >
-      <ApplicationHarness />
-    </RegistryProvider>
-  ),
-  options: { width: 120, height: 34, kittyKeyboard: true },
-})
-
 it.effect('renders a generic fallback for an unexpected schedule stream defect', () =>
   Effect.gen(function* () {
-    const ui = yield* applicationHarness
+    const ui = yield* OpenTuiTest.make({
+      node: (
+        <RegistryProvider
+          initialValues={[
+            Atom.initialValue(selectedDateAtom, fixedDate),
+            Atom.initialValue(ScheduleResource.scheduleForDateAtom(fixedDate), failureResult),
+          ]}
+        >
+          <ApplicationHarness />
+        </RegistryProvider>
+      ),
+      options: { width: 120, height: 34, kittyKeyboard: true },
+    })
 
     yield* ui.renderOnce
     const frame = yield* ui.waitForFrame((value) => value.includes('Unable to load schedule.'))

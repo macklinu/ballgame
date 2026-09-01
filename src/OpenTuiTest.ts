@@ -54,7 +54,7 @@ const makeHarness = (setup: TestRendererSetup): Harness => ({
   typeText: (text: string) => Effect.tryPromise(() => act(() => setup.mockInput.typeText(text))),
 })
 
-export const render = ({
+export const make = ({
   node,
   options,
 }: {

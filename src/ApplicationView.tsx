@@ -44,9 +44,6 @@ const CenteredContainer = ({ children }: { children: ReactNode }) => (
   </box>
 )
 
-const isSubsequentWaiting = <A, E>(result: AsyncResult.AsyncResult<A, E>): boolean =>
-  AsyncResult.isNotInitial(result) && AsyncResult.isWaiting(result)
-
 const scheduleFromRefresh = (
   refresh: ScheduleResource.ScheduleRefresh,
 ): Option.Option<Schedule.Schedule> =>
@@ -215,9 +212,6 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
           <text>
             <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
           </text>
-          <box alignSelf='center' minHeight={1}>
-            {isSubsequentWaiting(scheduleResult) ? <text>Refreshing…</text> : null}
-          </box>
         </box>
         <box flexGrow={0}>
           {AsyncResult.builder(scheduleResult)
@@ -236,6 +230,11 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
                 <RetryingSchedule refresh={refresh} onOpenOccurrence={openOccurrence} />
               ),
             )
+            .onFailure(() => (
+              <CenteredContainer>
+                <text>Unable to load schedule.</text>
+              </CenteredContainer>
+            ))
             .orNull()}
         </box>
       </box>

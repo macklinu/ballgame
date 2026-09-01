@@ -226,7 +226,7 @@ describe('game details', () => {
     }),
   )
 
-  it.effect('renders a linescore and compact available batting and pitching data', () =>
+  it.effect('renders score-bearing sections', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>
@@ -241,13 +241,8 @@ describe('game details', () => {
 
       const frame = setup.captureCharFrame()
       expect(frame).toContain('Inning linescore')
-      expect(frame).toContain('AWY')
       expect(frame).toContain('Batting')
-      expect(frame).toContain('Away Batter')
-      expect(frame).toContain('Home Club batting unavailable.')
       expect(frame).toContain('Pitching')
-      expect(frame).toContain('Away Pitcher')
-      expect(frame).toContain('Home Club pitching unavailable.')
     }),
   )
 

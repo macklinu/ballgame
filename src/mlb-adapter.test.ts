@@ -6,6 +6,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as HttpClient from 'effect/unstable/http/HttpClient'
 import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
+import invariant from 'tiny-invariant'
 import { describe, expect } from 'vitest'
 
 import * as Game from './Game'
@@ -332,23 +333,21 @@ const expectGameUnavailable = (
 ): void =>
   Match.value(failure).pipe(
     Match.tagsExhaustive({
-      GameNotFound: () => {
-        throw new Error('Expected GameUnavailable, received GameNotFound')
-      },
+      GameNotFound: () => invariant(false, 'Expected GameUnavailable, received GameNotFound'),
       GameUnavailable: (error) => {
         expect(error.operation).toBe(operation)
       },
-      ScheduleUnavailable: () => {
-        throw new Error('Expected GameUnavailable, received ScheduleUnavailable')
-      },
+      ScheduleUnavailable: () =>
+        invariant(false, 'Expected GameUnavailable, received ScheduleUnavailable'),
     }),
   )
 
 const asAvailable = (schedule: Schedule.Schedule): Schedule.AvailableScheduleOccurrence => {
   const occurrence = schedule.occurrences[0]
-  if (occurrence === undefined || !Schedule.isAvailableScheduleOccurrence(occurrence)) {
-    throw new Error('Expected an available schedule occurrence')
-  }
+  invariant(
+    occurrence !== undefined && Schedule.isAvailableScheduleOccurrence(occurrence),
+    'Expected an available schedule occurrence',
+  )
   return occurrence
 }
 

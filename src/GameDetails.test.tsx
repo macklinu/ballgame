@@ -1,15 +1,17 @@
 import { it } from '@effect/vitest'
 import { ScrollBoxRenderable } from '@opentui/core'
-import { testRender } from '@opentui/react/test-utils'
+import { KeyCodes } from '@opentui/core/testing'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { act, useState } from 'react'
+import invariant from 'tiny-invariant'
 import { describe, expect } from 'vitest'
 
 import type { ScheduleOccurrenceRef } from './AppState'
 import * as Game from './Game'
 import { GameDetails } from './GameDetails'
+import * as OpenTuiTest from './OpenTuiTest'
 import * as Schedule from './Schedule'
 import * as Status from './Status'
 import * as Team from './Team'
@@ -175,31 +177,23 @@ const refreshedScoreOverview = Game.GameOverview.make({
   }),
 })
 
-const gameDetailScrollBox = (
-  setup: Awaited<ReturnType<typeof testRender>>,
-): ScrollBoxRenderable => {
-  const renderable = setup.renderer.root.findDescendantById('game-details-scroll')
-  if (!(renderable instanceof ScrollBoxRenderable)) {
-    throw new Error('Expected the game detail scrollbox')
-  }
-  return renderable
-}
+const gameDetailScrollBox = (ui: OpenTuiTest.Harness) =>
+  Effect.gen(function* () {
+    const renderable = yield* ui.findDescendantById('game-details-scroll')
+    invariant(renderable instanceof ScrollBoxRenderable, 'Expected the game detail scrollbox')
+    return renderable
+  })
 
 describe('game details', () => {
   it.effect('renders scheduled context and pregame sections', () =>
     Effect.gen(function* () {
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(<GameDetails overview={scheduledOverview} occurrence={occurrence} />, {
-            width: 100,
-            height: 40,
-          }),
-        ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
+      const ui = yield* OpenTuiTest.render({
+        node: <GameDetails overview={scheduledOverview} occurrence={occurrence} />,
+        options: { width: 100, height: 40 },
+      })
+      yield* ui.renderOnce
 
-      const frame = setup.captureCharFrame()
+      const frame = yield* ui.captureCharFrame
       expect(frame).toContain('Away Club at Home Club')
       expect(frame).toContain('Scheduled for')
       expect(frame).toContain('Probable pitchers')
@@ -210,36 +204,26 @@ describe('game details', () => {
 
   it.effect('keeps scheduled details visible in a compact terminal', () =>
     Effect.gen(function* () {
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(<GameDetails overview={scheduledOverview} occurrence={occurrence} />, {
-            width: 80,
-            height: 24,
-          }),
-        ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
+      const ui = yield* OpenTuiTest.render({
+        node: <GameDetails overview={scheduledOverview} occurrence={occurrence} />,
+        options: { width: 80, height: 24 },
+      })
+      yield* ui.renderOnce
 
-      const frame = setup.captureCharFrame()
+      const frame = yield* ui.captureCharFrame
       expect(frame).toContain('Probable pitchers')
     }),
   )
 
   it.effect('renders score-bearing sections', () =>
     Effect.gen(function* () {
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(<GameDetails overview={scoreOverview} occurrence={occurrence} />, {
-            width: 100,
-            height: 40,
-          }),
-        ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
+      const ui = yield* OpenTuiTest.render({
+        node: <GameDetails overview={scoreOverview} occurrence={occurrence} />,
+        options: { width: 100, height: 40 },
+      })
+      yield* ui.renderOnce
 
-      const frame = setup.captureCharFrame()
+      const frame = yield* ui.captureCharFrame
       expect(frame).toContain('Inning linescore')
       expect(frame).toContain('Batting')
       expect(frame).toContain('Pitching')
@@ -248,18 +232,15 @@ describe('game details', () => {
 
   it.effect('keeps an active snapshot visible when its refresh is unavailable', () =>
     Effect.gen(function* () {
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(
-            <GameDetails overview={activeOverview} occurrence={occurrence} isRefreshUnavailable />,
-            { width: 100, height: 40 },
-          ),
+      const ui = yield* OpenTuiTest.render({
+        node: (
+          <GameDetails overview={activeOverview} occurrence={occurrence} isRefreshUnavailable />
         ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
+        options: { width: 100, height: 40 },
+      })
+      yield* ui.renderOnce
 
-      const frame = setup.captureCharFrame()
+      const frame = yield* ui.captureCharFrame
       expect(frame).toContain('Top 1st')
       expect(frame).toContain('Refresh unavailable; showing last update.')
       expect(frame).toContain('Inning linescore')
@@ -268,18 +249,13 @@ describe('game details', () => {
 
   it.effect('renders non-score-bearing status without invented score or stat sections', () =>
     Effect.gen(function* () {
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(<GameDetails overview={postponedOverview} occurrence={occurrence} />, {
-            width: 100,
-            height: 40,
-          }),
-        ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
+      const ui = yield* OpenTuiTest.render({
+        node: <GameDetails overview={postponedOverview} occurrence={occurrence} />,
+        options: { width: 100, height: 40 },
+      })
+      yield* ui.renderOnce
 
-      const frame = setup.captureCharFrame()
+      const frame = yield* ui.captureCharFrame
       expect(frame).toContain('Postponed')
       expect(frame).toContain('Reason: Rain')
       expect(frame).toContain('Selected schedule: 2025-04-05')
@@ -292,24 +268,23 @@ describe('game details', () => {
   it.effect('returns to the board when Escape reaches the focused scrollbox', () =>
     Effect.gen(function* () {
       let backCount = 0
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(
-            <GameDetails
-              overview={scoreOverview}
-              occurrence={occurrence}
-              onBack={() => {
-                backCount += 1
-              }}
-            />,
-            { width: 100, height: 18, kittyKeyboard: true },
-          ),
+      const ui = yield* OpenTuiTest.render({
+        node: (
+          <GameDetails
+            overview={scoreOverview}
+            occurrence={occurrence}
+            onBack={() => {
+              backCount += 1
+            }}
+          />
         ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
-      yield* Effect.sync(() => gameDetailScrollBox(setup).focus())
-      yield* Effect.sync(() => setup.mockInput.pressEscape())
+        options: { width: 100, height: 18, kittyKeyboard: true },
+      })
+      yield* ui.renderOnce
+
+      const scrollbox = yield* gameDetailScrollBox(ui)
+      yield* Effect.sync(() => scrollbox.focus())
+      yield* ui.pressKey({ key: KeyCodes.ESCAPE })
 
       expect(backCount).toBe(1)
     }),
@@ -324,21 +299,24 @@ describe('game details', () => {
         refresh = () => setOverview(refreshedScoreOverview)
         return <GameDetails overview={overview} occurrence={occurrence} />
       }
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() => testRender(<RefreshableDetails />, { width: 100, height: 18 })),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
-      const scrollbox = gameDetailScrollBox(setup)
+      const ui = yield* OpenTuiTest.render({
+        node: <RefreshableDetails />,
+        options: { width: 100, height: 18 },
+      })
+      yield* ui.renderOnce
+
+      const scrollbox = yield* gameDetailScrollBox(ui)
       yield* Effect.sync(() => scrollbox.scrollBy(4))
-      yield* Effect.tryPromise(() => setup.renderOnce())
+      yield* ui.renderOnce
 
       yield* Effect.sync(() => act(refresh))
-      yield* Effect.tryPromise(() => setup.renderOnce())
+      yield* ui.renderOnce
 
-      expect(gameDetailScrollBox(setup)).toBe(scrollbox)
+      const refreshedScrollbox = yield* gameDetailScrollBox(ui)
+      expect(refreshedScrollbox).toBe(scrollbox)
       expect(scrollbox.scrollTop).toBeGreaterThan(0)
-      expect(setup.captureCharFrame()).toContain('Final (refreshed)')
+      const frame = yield* ui.captureCharFrame
+      expect(frame).toContain('Final (refreshed)')
     }),
   )
 })

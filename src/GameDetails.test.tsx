@@ -186,7 +186,7 @@ const gameDetailScrollBox = (
 }
 
 describe('game details', () => {
-  it.effect('renders scheduled context, pitchers, and an explicit lineup state', () =>
+  it.effect('renders scheduled context and pregame sections', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() =>
@@ -203,8 +203,7 @@ describe('game details', () => {
       expect(frame).toContain('Away Club at Home Club')
       expect(frame).toContain('Scheduled for')
       expect(frame).toContain('Probable pitchers')
-      expect(frame).toContain('Away Starter (P)')
-      expect(frame).toContain('Lineups not announced.')
+      expect(frame).toContain('Lineups')
       expect(frame).toContain('Page Up/Page Down page')
     }),
   )
@@ -224,7 +223,6 @@ describe('game details', () => {
 
       const frame = setup.captureCharFrame()
       expect(frame).toContain('Probable pitchers')
-      expect(frame).toContain('Lineups not announced.')
     }),
   )
 

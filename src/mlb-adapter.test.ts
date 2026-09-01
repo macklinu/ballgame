@@ -488,6 +488,21 @@ describe('MLB adapter boundary', () => {
     }),
   )
 
+  it.effect('maps the scheduled provider code used by the live schedule', () =>
+    Effect.gen(function* () {
+      const scheduled = scheduledGame()
+      const occurrence = yield* mapAvailable({
+        ...scheduled,
+        status: { ...scheduled.status, codedGameState: 'S' },
+      })
+
+      expect({ state: occurrence.game.status.state, score: occurrence.game.score }).toEqual({
+        state: 'Scheduled',
+        score: noScore,
+      })
+    }),
+  )
+
   it.effect('keeps a future game when optional schedule metadata is partial', () =>
     Effect.gen(function* () {
       const occurrence = yield* mapAvailable(futureGameWithPartialScheduleMetadata())

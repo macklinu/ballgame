@@ -28,13 +28,17 @@ export const RetryingSchedule = Schema.TaggedStruct('Retrying', {
 export type RetryingSchedule = typeof RetryingSchedule.Type
 
 /** The complete public state of a date-specific live schedule refresh. */
-export const ScheduleRefresh = Schema.Union([ReadySchedule, RetryingSchedule])
+export const ScheduleRefresh = Schema.Union([ReadySchedule, RetryingSchedule]).pipe(
+  Schema.toTaggedUnion('_tag'),
+)
 export type ScheduleRefresh = typeof ScheduleRefresh.Type
 
 const refreshInterval = '15 seconds'
 
-const shouldContinuePolling = (refresh: ScheduleRefresh): boolean =>
-  refresh._tag === 'Retrying' || Schedule.hasActivelyInProgressGame(refresh.snapshot.schedule)
+const shouldContinuePolling = ScheduleRefresh.match({
+  Ready: ({ snapshot }) => Schedule.hasActivelyInProgressGame(snapshot.schedule),
+  Retrying: () => true,
+})
 
 /**
  * Fetches once immediately, then only polls an active selected-day slate.

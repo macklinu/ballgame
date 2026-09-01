@@ -47,9 +47,11 @@ const CenteredContainer = ({ children }: { children: ReactNode }) => (
 const scheduleFromRefresh = (
   refresh: ScheduleResource.ScheduleRefresh,
 ): Option.Option<Schedule.Schedule> =>
-  refresh._tag === 'Ready'
-    ? Option.some(refresh.snapshot.schedule)
-    : refresh.lastSuccessful.pipe(Option.map((snapshot) => snapshot.schedule))
+  ScheduleResource.ScheduleRefresh.match(refresh, {
+    Ready: ({ snapshot }) => Option.some(snapshot.schedule),
+    Retrying: ({ lastSuccessful }) =>
+      lastSuccessful.pipe(Option.map((snapshot) => snapshot.schedule)),
+  })
 
 const NoGamesScheduled = () => <text attributes={TextAttributes.DIM}>No games today.</text>
 
@@ -131,6 +133,22 @@ const RetryingSchedule = ({
     ),
   })
 
+const ScheduleRefreshView = ({
+  refresh,
+  onOpenOccurrence,
+}: {
+  refresh: ScheduleResource.ScheduleRefresh
+  onOpenOccurrence: (occurrence: Schedule.AvailableScheduleOccurrence) => void
+}) =>
+  ScheduleResource.ScheduleRefresh.match(refresh, {
+    Ready: ({ snapshot }) => (
+      <DailyGameView schedule={snapshot.schedule} onOpenOccurrence={onOpenOccurrence} />
+    ),
+    Retrying: (retrying) => (
+      <RetryingSchedule refresh={retrying} onOpenOccurrence={onOpenOccurrence} />
+    ),
+  })
+
 const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
   const date = useAtomValue(selectedDateAtom)
   const scheduleResult = useAtomValue(ScheduleResource.scheduleForDateAtom(date))
@@ -146,24 +164,27 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
 
   useEffect(() => {
     if (AsyncResult.isSuccess(scheduleResult)) {
-      scheduleFromRefresh(scheduleResult.value).pipe(
-        Option.map((schedule) => synchronizeSelection(schedule)),
-      )
+      Option.match(scheduleFromRefresh(scheduleResult.value), {
+        onNone: () => undefined,
+        onSome: synchronizeSelection,
+      })
     }
   }, [scheduleResult, synchronizeSelection])
 
   const previousOccurrence = useCallback(() => {
     if (AsyncResult.isSuccess(scheduleResult)) {
-      scheduleFromRefresh(scheduleResult.value).pipe(
-        Option.map((schedule) => selectPreviousOccurrence(schedule)),
-      )
+      Option.match(scheduleFromRefresh(scheduleResult.value), {
+        onNone: () => undefined,
+        onSome: selectPreviousOccurrence,
+      })
     }
   }, [scheduleResult, selectPreviousOccurrence])
   const nextOccurrence = useCallback(() => {
     if (AsyncResult.isSuccess(scheduleResult)) {
-      scheduleFromRefresh(scheduleResult.value).pipe(
-        Option.map((schedule) => selectNextOccurrence(schedule)),
-      )
+      Option.match(scheduleFromRefresh(scheduleResult.value), {
+        onNone: () => undefined,
+        onSome: selectNextOccurrence,
+      })
     }
   }, [scheduleResult, selectNextOccurrence])
   const openOccurrence = useCallback(
@@ -220,16 +241,9 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
                 <Loading />
               </CenteredContainer>
             ))
-            .onSuccess((refresh) =>
-              refresh._tag === 'Ready' ? (
-                <DailyGameView
-                  schedule={refresh.snapshot.schedule}
-                  onOpenOccurrence={openOccurrence}
-                />
-              ) : (
-                <RetryingSchedule refresh={refresh} onOpenOccurrence={openOccurrence} />
-              ),
-            )
+            .onSuccess((refresh) => (
+              <ScheduleRefreshView refresh={refresh} onOpenOccurrence={openOccurrence} />
+            ))
             .onFailure(() => (
               <CenteredContainer>
                 <text>Unable to load schedule.</text>

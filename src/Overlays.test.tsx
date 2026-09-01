@@ -1,19 +1,19 @@
 import { RegistryProvider, useAtomSet, useAtomValue } from '@effect/atom-react'
 import { it } from '@effect/vitest'
-import type { TestRendererSetup } from '@opentui/core/testing'
+import { KeyCodes } from '@opentui/core/testing'
 import { createDefaultOpenTuiKeymap } from '@opentui/keymap/opentui'
 import { KeymapProvider, useBindings } from '@opentui/keymap/react'
 import { useRenderer } from '@opentui/react'
-import { testRender } from '@opentui/react/test-utils'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Atom from 'effect/unstable/reactivity/Atom'
-import { act, useMemo } from 'react'
+import { useMemo } from 'react'
 import { describe, expect } from 'vitest'
 
 import { activeOverlayAtom, openOverlayAtom, Overlay, selectedDateAtom } from './AppState'
 import { appCommandLayer, scheduleCommandLayer } from './CommandLayers'
+import * as OpenTuiTest from './OpenTuiTest'
 import { OverlayHost } from './Overlays'
 
 const fixedDate = DateTime.makeZonedUnsafe({ year: 2025, month: 4, day: 4 }, { timeZone: 'UTC' })
@@ -65,104 +65,55 @@ const KeymapHarness = ({ commands }: { commands: Array<string> }) => {
   )
 }
 
-const overlayHarness = Effect.acquireRelease(
-  Effect.gen(function* () {
-    const commands: Array<string> = []
-    const renderer = yield* Effect.tryPromise(() =>
-      testRender(
-        <RegistryProvider initialValues={[Atom.initialValue(selectedDateAtom, fixedDate)]}>
-          <KeymapHarness commands={commands} />
-        </RegistryProvider>,
-        { width: 120, height: 34, kittyKeyboard: true },
-      ),
-    )
-
-    return { renderer, commands }
-  }),
-  (harness) =>
-    Effect.sync(() => {
-      harness.renderer.renderer.destroy()
-    }),
-)
-
-const renderedOverlayHarness = overlayHarness.pipe(
-  Effect.tap((harness) => Effect.tryPromise(() => harness.renderer.renderOnce())),
-)
-
-const clearDateInput = ({
-  renderer,
-  length,
-}: {
-  readonly renderer: TestRendererSetup
-  readonly length: number
-}) => {
-  for (let index = 0; index < length; index += 1) {
-    renderer.mockInput.pressBackspace()
-  }
-}
-
-const pressKey = ({
-  renderer,
-  key,
-}: {
-  readonly renderer: TestRendererSetup
-  readonly key: string
-}) =>
-  act(() => {
-    if (key === 'escape') {
-      renderer.mockInput.pressEscape()
-      return
-    }
-
-    if (key === 'return') {
-      renderer.mockInput.pressEnter()
-      return
-    }
-
-    if (key === 'backspace') {
-      renderer.mockInput.pressBackspace()
-      return
-    }
-
-    renderer.mockInput.pressKey(key)
+const overlayHarness = Effect.gen(function* () {
+  const commands: Array<string> = []
+  const ui = yield* OpenTuiTest.make({
+    node: (
+      <RegistryProvider initialValues={[Atom.initialValue(selectedDateAtom, fixedDate)]}>
+        <KeymapHarness commands={commands} />
+      </RegistryProvider>
+    ),
+    options: { width: 120, height: 34, kittyKeyboard: true },
   })
+
+  return { ui, commands }
+})
+
+const renderedOverlayHarness = overlayHarness.pipe(Effect.tap(({ ui }) => ui.renderOnce))
 
 describe('overlay interactions', () => {
   it.effect('disables base commands until Help is dismissed', () =>
     Effect.gen(function* () {
       const harness = yield* renderedOverlayHarness
 
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: '?' }))
-      const helpFrame = yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) => frame.includes('Available commands')),
+      yield* harness.ui.pressKey({ key: '?' })
+      const helpFrame = yield* harness.ui.waitForFrame((frame) =>
+        frame.includes('Available commands'),
       )
 
       expect(helpFrame).not.toContain('g schedule.go-to-date')
       expect(helpFrame).toContain('? overlay.dismiss')
 
-      for (const key of ['q', 'p', 'return']) {
-        yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key }))
+      for (const key of ['q', 'p', KeyCodes.RETURN]) {
+        yield* harness.ui.pressKey({ key })
       }
-      yield* Effect.tryPromise(() => harness.renderer.renderOnce())
+      yield* harness.ui.renderOnce
 
-      expect(harness.renderer.captureCharFrame()).toContain('Available commands')
+      const currentFrame = yield* harness.ui.captureCharFrame
+      expect(currentFrame).toContain('Available commands')
       expect(harness.commands).toEqual([])
 
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: '?' }))
-      yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) => !frame.includes('Available commands')),
-      )
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'p' }))
+      yield* harness.ui.pressKey({ key: '?' })
+      yield* harness.ui.waitForFrame((frame) => !frame.includes('Available commands'))
+      yield* harness.ui.pressKey({ key: 'p' })
 
       expect(harness.commands).toEqual(['previous-date'])
 
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: '?' }))
-      yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) => frame.includes('Available commands')),
-      )
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'escape' }))
-      const escapedFrame = yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) => !frame.includes('Available commands')),
+      yield* harness.ui.pressKey({ key: '?' })
+      yield* harness.ui.waitForFrame((frame) => frame.includes('Available commands'))
+      yield* harness.ui.pressKey({ key: KeyCodes.ESCAPE })
+      const escapedFrame = yield* harness.ui.waitForFrame(
+        (frame) => !frame.includes('Available commands'),
       )
 
       expect(escapedFrame).toContain('Selected date: 2025-04-04')
@@ -174,68 +125,51 @@ describe('overlay interactions', () => {
     Effect.gen(function* () {
       const harness = yield* renderedOverlayHarness
 
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'g' }))
-      yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) => frame.includes('Go to date')),
-      )
+      yield* harness.ui.pressKey({ key: 'g' })
+      yield* harness.ui.waitForFrame((frame) => frame.includes('Go to date'))
 
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'p' }))
-      const editedFrame = yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) => frame.includes('2025-04-04p')),
-      )
+      yield* harness.ui.pressKey({ key: 'p' })
+      const editedFrame = yield* harness.ui.waitForFrame((frame) => frame.includes('2025-04-04p'))
 
       expect(editedFrame).toContain('Go to date')
       expect(harness.commands).toEqual([])
 
-      yield* Effect.sync(() => {
-        act(() => {
-          harness.renderer.mockInput.pressBackspace()
-          clearDateInput({ renderer: harness.renderer, length: isoDateLength })
-        })
+      yield* harness.ui.pressKeys({
+        keys: Array.from({ length: isoDateLength + 1 }, () => KeyCodes.BACKSPACE),
       })
-      yield* Effect.tryPromise(() => act(() => harness.renderer.mockInput.typeText('2025-02-30')))
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'return' }))
-      const invalidFrame = yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) =>
-          frame.includes('Enter a valid local calendar date.'),
-        ),
+      yield* harness.ui.typeText('2025-02-30')
+      yield* harness.ui.pressKey({ key: KeyCodes.RETURN })
+      const invalidFrame = yield* harness.ui.waitForFrame((frame) =>
+        frame.includes('Enter a valid local calendar date.'),
       )
 
       expect(invalidFrame).toContain('Go to date')
 
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'backspace' }))
-      const correctedFrame = yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame(
-          (frame) =>
-            frame.includes('2025-02-3') && !frame.includes('Enter a valid local calendar date.'),
-        ),
+      yield* harness.ui.pressKey({ key: KeyCodes.BACKSPACE })
+      const correctedFrame = yield* harness.ui.waitForFrame(
+        (frame) =>
+          frame.includes('2025-02-3') && !frame.includes('Enter a valid local calendar date.'),
       )
 
       expect(correctedFrame).toContain('Go to date')
 
-      yield* Effect.sync(() => {
-        act(() => clearDateInput({ renderer: harness.renderer, length: isoDateLength - 1 }))
+      yield* harness.ui.pressKeys({
+        keys: Array.from({ length: isoDateLength - 1 }, () => KeyCodes.BACKSPACE),
       })
-      yield* Effect.tryPromise(() => act(() => harness.renderer.mockInput.typeText('2025-04-05')))
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'return' }))
-      const scheduleFrame = yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame(
-          (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
-        ),
+      yield* harness.ui.typeText('2025-04-05')
+      yield* harness.ui.pressKey({ key: KeyCodes.RETURN })
+      const scheduleFrame = yield* harness.ui.waitForFrame(
+        (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
       )
 
       expect(scheduleFrame).toContain('Selected date: 2025-04-05')
       expect(harness.commands).toEqual([])
 
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'g' }))
-      yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame((frame) => frame.includes('Go to date')),
-      )
-      yield* Effect.sync(() => pressKey({ renderer: harness.renderer, key: 'escape' }))
-      const escapedFrame = yield* Effect.tryPromise(() =>
-        harness.renderer.waitForFrame(
-          (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
-        ),
+      yield* harness.ui.pressKey({ key: 'g' })
+      yield* harness.ui.waitForFrame((frame) => frame.includes('Go to date'))
+      yield* harness.ui.pressKey({ key: KeyCodes.ESCAPE })
+      const escapedFrame = yield* harness.ui.waitForFrame(
+        (frame) => frame.includes('Selected date: 2025-04-05') && !frame.includes('Go to date'),
       )
 
       expect(escapedFrame).toContain('Selected date: 2025-04-05')

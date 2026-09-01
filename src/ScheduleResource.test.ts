@@ -8,6 +8,7 @@ import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
 import * as TestClock from 'effect/testing/TestClock'
+import invariant from 'tiny-invariant'
 import { describe, expect } from 'vitest'
 
 import * as Game from './Game'
@@ -66,9 +67,7 @@ const takeResponse = (
   responses: ReadonlyArray<ControlledResponse>,
 ): readonly [ControlledResponse, ReadonlyArray<ControlledResponse>] => {
   const response = responses[0]
-  if (response === undefined) {
-    throw new Error('Test did not provide enough controlled schedule responses')
-  }
+  invariant(response !== undefined, 'Test did not provide enough controlled schedule responses')
 
   return [response, responses.slice(1)]
 }
@@ -113,15 +112,14 @@ const expectReadySchedule = ({
   readonly state: Status.GameState
 }): ScheduleResource.ReadySchedule => {
   expect(refresh._tag).toBe('Ready')
-  if (refresh._tag !== 'Ready') {
-    throw new Error('Expected a ready schedule')
-  }
+  invariant(refresh._tag === 'Ready', 'Expected a ready schedule')
 
   const occurrence = refresh.snapshot.schedule.occurrences[0]
   expect(occurrence?._tag).toBe('Available')
-  if (occurrence?._tag !== 'Available') {
-    throw new Error('Expected an available schedule occurrence')
-  }
+  invariant(
+    occurrence !== undefined && occurrence._tag === 'Available',
+    'Expected an available schedule occurrence',
+  )
 
   expect(occurrence.game.status.state).toBe(state)
   return refresh

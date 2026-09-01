@@ -1,5 +1,4 @@
 import { it } from '@effect/vitest'
-import { testRender } from '@opentui/react/test-utils'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
@@ -7,6 +6,7 @@ import { describe, expect } from 'vitest'
 
 import * as Game from './Game'
 import { BoxscoreDetails } from './GameBoxscoreDetails'
+import * as OpenTuiTest from './OpenTuiTest'
 import * as Status from './Status'
 import * as Team from './Team'
 
@@ -38,103 +38,100 @@ const activeGame = Game.Game.make({
 describe('boxscore details', () => {
   it.effect('renders a linescore and available and unavailable table sections', () =>
     Effect.gen(function* () {
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(
-            <BoxscoreDetails
-              game={game}
-              linescore={Option.some(
-                Game.Linescore.make({
-                  scheduledInnings: Option.some(9),
-                  currentInning: Option.some(1),
-                  inningHalf: Option.some('Bottom'),
-                  away: Game.TeamLinescore.make({
-                    runs: Option.some(3),
-                    hits: Option.some(8),
-                    errors: Option.some(1),
-                    leftOnBase: Option.none(),
+      const ui = yield* OpenTuiTest.make({
+        node: (
+          <BoxscoreDetails
+            game={game}
+            linescore={Option.some(
+              Game.Linescore.make({
+                scheduledInnings: Option.some(9),
+                currentInning: Option.some(1),
+                inningHalf: Option.some('Bottom'),
+                away: Game.TeamLinescore.make({
+                  runs: Option.some(3),
+                  hits: Option.some(8),
+                  errors: Option.some(1),
+                  leftOnBase: Option.none(),
+                }),
+                home: Game.TeamLinescore.make({
+                  runs: Option.some(5),
+                  hits: Option.some(9),
+                  errors: Option.some(0),
+                  leftOnBase: Option.none(),
+                }),
+                innings: [
+                  Game.InningLinescore.make({
+                    number: 1,
+                    away: Game.TeamLinescore.make({
+                      runs: Option.some(1),
+                      hits: Option.none(),
+                      errors: Option.none(),
+                      leftOnBase: Option.none(),
+                    }),
+                    home: Game.TeamLinescore.make({
+                      runs: Option.some(0),
+                      hits: Option.none(),
+                      errors: Option.none(),
+                      leftOnBase: Option.none(),
+                    }),
                   }),
-                  home: Game.TeamLinescore.make({
-                    runs: Option.some(5),
-                    hits: Option.some(9),
-                    errors: Option.some(0),
-                    leftOnBase: Option.none(),
-                  }),
-                  innings: [
-                    Game.InningLinescore.make({
-                      number: 1,
-                      away: Game.TeamLinescore.make({
-                        runs: Option.some(1),
-                        hits: Option.none(),
-                        errors: Option.none(),
-                        leftOnBase: Option.none(),
+                ],
+              }),
+            )}
+            boxscore={Option.some(
+              Game.Boxscore.make({
+                away: Game.TeamBoxscore.make({
+                  batting: [
+                    Game.BattingBoxscoreLine.make({
+                      player: Game.Player.make({
+                        ref: Game.PlayerRef.make('batter-away'),
+                        name: 'Away Batter',
+                        position: Option.some('CF'),
                       }),
-                      home: Game.TeamLinescore.make({
-                        runs: Option.some(0),
-                        hits: Option.none(),
-                        errors: Option.none(),
-                        leftOnBase: Option.none(),
+                      stats: Game.BattingLine.make({
+                        atBats: Option.some(4),
+                        runs: Option.some(1),
+                        hits: Option.some(2),
+                        doubles: Option.none(),
+                        triples: Option.none(),
+                        homeRuns: Option.some(0),
+                        runsBattedIn: Option.some(1),
+                        walks: Option.some(0),
+                        strikeOuts: Option.some(1),
+                        average: Option.some('.250'),
+                      }),
+                    }),
+                  ],
+                  pitching: [
+                    Game.PitchingBoxscoreLine.make({
+                      player: Game.Player.make({
+                        ref: Game.PlayerRef.make('pitcher-away'),
+                        name: 'Away Pitcher',
+                        position: Option.some('P'),
+                      }),
+                      stats: Game.PitchingLine.make({
+                        inningsPitched: Option.some('6.0'),
+                        hits: Option.some(5),
+                        runs: Option.some(2),
+                        earnedRuns: Option.some(2),
+                        walks: Option.some(1),
+                        strikeOuts: Option.some(7),
+                        homeRuns: Option.some(1),
+                        earnedRunAverage: Option.some('3.00'),
                       }),
                     }),
                   ],
                 }),
-              )}
-              boxscore={Option.some(
-                Game.Boxscore.make({
-                  away: Game.TeamBoxscore.make({
-                    batting: [
-                      Game.BattingBoxscoreLine.make({
-                        player: Game.Player.make({
-                          ref: Game.PlayerRef.make('batter-away'),
-                          name: 'Away Batter',
-                          position: Option.some('CF'),
-                        }),
-                        stats: Game.BattingLine.make({
-                          atBats: Option.some(4),
-                          runs: Option.some(1),
-                          hits: Option.some(2),
-                          doubles: Option.none(),
-                          triples: Option.none(),
-                          homeRuns: Option.some(0),
-                          runsBattedIn: Option.some(1),
-                          walks: Option.some(0),
-                          strikeOuts: Option.some(1),
-                          average: Option.some('.250'),
-                        }),
-                      }),
-                    ],
-                    pitching: [
-                      Game.PitchingBoxscoreLine.make({
-                        player: Game.Player.make({
-                          ref: Game.PlayerRef.make('pitcher-away'),
-                          name: 'Away Pitcher',
-                          position: Option.some('P'),
-                        }),
-                        stats: Game.PitchingLine.make({
-                          inningsPitched: Option.some('6.0'),
-                          hits: Option.some(5),
-                          runs: Option.some(2),
-                          earnedRuns: Option.some(2),
-                          walks: Option.some(1),
-                          strikeOuts: Option.some(7),
-                          homeRuns: Option.some(1),
-                          earnedRunAverage: Option.some('3.00'),
-                        }),
-                      }),
-                    ],
-                  }),
-                  home: Game.TeamBoxscore.make({ batting: [], pitching: [] }),
-                }),
-              )}
-            />,
-            { width: 100, height: 40 },
-          ),
+                home: Game.TeamBoxscore.make({ batting: [], pitching: [] }),
+              }),
+            )}
+          />
         ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
+        options: { width: 100, height: 40 },
+      })
+      yield* ui.renderOnce
 
-      const frame = setup.captureCharFrame()
+      const frame = yield* ui.captureCharFrame
       expect(frame).toContain('Inning linescore')
       expect(frame).toContain('AWY')
       expect(frame).toContain('Batting')
@@ -148,22 +145,15 @@ describe('boxscore details', () => {
 
   it.effect('renders score-bearing sections for an active game', () =>
     Effect.gen(function* () {
-      const setup = yield* Effect.acquireRelease(
-        Effect.tryPromise(() =>
-          testRender(
-            <BoxscoreDetails
-              game={activeGame}
-              linescore={Option.none()}
-              boxscore={Option.none()}
-            />,
-            { width: 80, height: 16 },
-          ),
+      const ui = yield* OpenTuiTest.make({
+        node: (
+          <BoxscoreDetails game={activeGame} linescore={Option.none()} boxscore={Option.none()} />
         ),
-        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
-      )
-      yield* Effect.tryPromise(() => setup.renderOnce())
+        options: { width: 80, height: 16 },
+      })
+      yield* ui.renderOnce
 
-      const frame = setup.captureCharFrame()
+      const frame = yield* ui.captureCharFrame
       expect(frame).toContain('Inning linescore')
       expect(frame).toContain('Linescore unavailable.')
       expect(frame).toContain('Batting unavailable.')

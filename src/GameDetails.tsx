@@ -235,7 +235,7 @@ const Boxscore = ({ overview }: { overview: Game.GameOverview }) =>
 export interface GameDetailsProps {
   readonly overview: Game.GameOverview
   readonly occurrence: ScheduleOccurrenceRef
-  readonly isRefreshing?: boolean
+  readonly isRefreshUnavailable?: boolean
   readonly onBack?: () => void
 }
 
@@ -243,7 +243,7 @@ export interface GameDetailsProps {
 export const GameDetails = ({
   overview,
   occurrence,
-  isRefreshing = false,
+  isRefreshUnavailable = false,
   onBack,
 }: GameDetailsProps) => {
   const { game } = overview
@@ -266,7 +266,9 @@ export const GameDetails = ({
           </b>
         </text>
         <text>{game.status.label}</text>
-        <box minHeight={1}>{isRefreshing ? <text>Refreshing…</text> : null}</box>
+        {isRefreshUnavailable ? (
+          <text attributes={TextAttributes.DIM}>Refresh unavailable; showing last update.</text>
+        ) : null}
         {Option.match(game.status.reason, {
           onNone: () => null,
           onSome: (reason) => <text>Reason: {reason}</text>,

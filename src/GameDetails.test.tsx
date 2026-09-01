@@ -144,6 +144,11 @@ const scoreOverview = Game.GameOverview.make({
   ),
 })
 
+const activeOverview = Game.GameOverview.make({
+  ...scoreOverview,
+  game: game(Status.GameStatus.make({ state: 'Active', label: 'Top 1st', reason: Option.none() })),
+})
+
 const postponedOverview = Game.GameOverview.make({
   game: game(
     Status.GameStatus.make({
@@ -248,6 +253,26 @@ describe('game details', () => {
     }),
   )
 
+  it.effect('keeps an active snapshot visible when its refresh is unavailable', () =>
+    Effect.gen(function* () {
+      const setup = yield* Effect.acquireRelease(
+        Effect.tryPromise(() =>
+          testRender(
+            <GameDetails overview={activeOverview} occurrence={occurrence} isRefreshUnavailable />,
+            { width: 100, height: 40 },
+          ),
+        ),
+        (rendered) => Effect.sync(() => rendered.renderer.destroy()),
+      )
+      yield* Effect.tryPromise(() => setup.renderOnce())
+
+      const frame = setup.captureCharFrame()
+      expect(frame).toContain('Top 1st')
+      expect(frame).toContain('Refresh unavailable; showing last update.')
+      expect(frame).toContain('Inning linescore')
+    }),
+  )
+
   it.effect('renders non-score-bearing status without invented score or stat sections', () =>
     Effect.gen(function* () {
       const setup = yield* Effect.acquireRelease(
@@ -304,7 +329,7 @@ describe('game details', () => {
       const RefreshableDetails = () => {
         const [overview, setOverview] = useState(scoreOverview)
         refresh = () => setOverview(refreshedScoreOverview)
-        return <GameDetails overview={overview} occurrence={occurrence} isRefreshing />
+        return <GameDetails overview={overview} occurrence={occurrence} />
       }
       const setup = yield* Effect.acquireRelease(
         Effect.tryPromise(() => testRender(<RefreshableDetails />, { width: 100, height: 18 })),

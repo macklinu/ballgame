@@ -248,7 +248,7 @@ const GameDetailsShell = ({
       <GameDetails
         overview={overview}
         occurrence={occurrence}
-        isRefreshing={isSubsequentWaiting(overviewResult)}
+        isRefreshUnavailable={AsyncResult.isFailure(overviewResult)}
         onBack={() => popRoute(undefined)}
       />
     ),

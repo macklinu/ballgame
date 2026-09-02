@@ -7,6 +7,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as HttpClient from 'effect/unstable/http/HttpClient'
 import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
+import { ChildProcessSpawner } from 'effect/unstable/process'
 import invariant from 'tiny-invariant'
 import { describe, expect } from 'vitest'
 
@@ -313,9 +314,23 @@ const makeLiveAdapter = (schedule: ProviderGameFixture, feedBody: string) => {
     )
   })
 
+  const browserArguments: Array<ReadonlyArray<string>> = []
+  const browser = Layer.mock(ChildProcessSpawner.ChildProcessSpawner, {
+    exitCode: (command) => {
+      if (command._tag === 'StandardCommand') {
+        browserArguments.push(command.args)
+      }
+      return Effect.succeed(ChildProcessSpawner.ExitCode(0))
+    },
+  })
+
   return {
-    layer: MlbAdapter.layerLive.pipe(Layer.provide(Layer.succeed(HttpClient.HttpClient, client))),
+    layer: MlbAdapter.layerLive.pipe(
+      Layer.provide(Layer.succeed(HttpClient.HttpClient, client)),
+      Layer.provide(browser),
+    ),
     requestedUrls,
+    browserArguments,
   }
 }
 
@@ -326,6 +341,15 @@ const getSelectedOverview = Effect.fn('MlbAdapterTest.getSelectedOverview')(func
   const occurrence = asAvailable(schedule)
 
   return yield* gameService.get(occurrence.game.ref)
+})
+
+const openSelectedMlbTv = Effect.fn('MlbAdapterTest.openSelectedMlbTv')(function* () {
+  const scheduleService = yield* Schedule.ScheduleService
+  const gameService = yield* Game.GameService
+  const schedule = yield* scheduleService.get(selectedDate)
+  const occurrence = asAvailable(schedule)
+
+  yield* gameService.openMlbTv(occurrence.game.ref)
 })
 
 const expectGameUnavailable = (
@@ -792,6 +816,15 @@ describe('MLB adapter boundary', () => {
       const failure = yield* Effect.flip(getSelectedOverview().pipe(Effect.provide(adapter.layer)))
 
       expectGameUnavailable(failure, 'GameOverview.fetch')
+    })
+  })
+  it.effect('opens the selected game official MLB.TV page from its provider game identity', () => {
+    const adapter = makeLiveAdapter(scheduledGame(), JSON.stringify(fullGameFeed()))
+
+    return Effect.gen(function* () {
+      yield* openSelectedMlbTv().pipe(Effect.provide(adapter.layer))
+
+      expect(adapter.browserArguments).toEqual([['https://www.mlb.com/tv/g778443']])
     })
   })
 })

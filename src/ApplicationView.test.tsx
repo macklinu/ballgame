@@ -80,6 +80,7 @@ it.effect('renders command hint titles', () =>
     expect(frame).toContain('↑ Prev game')
     expect(frame).toContain('↓ Next game')
 
+    expect(frame).toContain('v Open MLB.TV')
     for (const title of [
       'Prev date',
       'Next date',
@@ -88,6 +89,7 @@ it.effect('renders command hint titles', () =>
       'Prev game',
       'Next game',
       'Open',
+      'Open MLB.TV',
       'Help',
       'Quit',
     ]) {

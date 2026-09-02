@@ -39,6 +39,7 @@ const ScheduleHarness = ({ commands }: { commands: Array<string> }) => {
         previousOccurrence: () => commands.push('previous-occurrence'),
         nextOccurrence: () => commands.push('next-occurrence'),
         openSelectedGame: () => commands.push('open-game'),
+        openMlbTv: () => commands.push('open-mlb-tv'),
         openHelp: () => openOverlay(Overlay.Help()),
       }),
       enabled: commandsEnabled,

@@ -189,9 +189,10 @@ export class GameUnavailable extends Schema.TaggedError<GameUnavailable>()('Game
 
 export interface GameServiceApi {
   readonly get: (gameRef: GameRef) => Effect.Effect<GameOverview, GameNotFound | GameUnavailable>
+  readonly openMlbTv: (gameRef: GameRef) => Effect.Effect<void, GameNotFound | GameUnavailable>
 }
 
-/** Public application service: normalized game overviews and typed application errors only. */
+/** Public application service: normalized game operations and typed application errors only. */
 export class GameService extends Context.Service<GameService, GameServiceApi>()(
   '@macklinu/ballgame/GameService',
 ) {}

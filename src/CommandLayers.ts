@@ -27,17 +27,17 @@ export const appCommandLayer = (handlers: AppCommandHandlers) => ({
 export const scheduleCommandLayer = (handlers: ScheduleCommandHandlers) => ({
   priority: 100,
   commands: [
-    { name: 'schedule.previous-date', title: 'Previous date', run: handlers.previousDate },
+    { name: 'schedule.previous-date', title: 'Prev date', run: handlers.previousDate },
     { name: 'schedule.next-date', title: 'Next date', run: handlers.nextDate },
     { name: 'schedule.today', title: 'Today', run: handlers.today },
     { name: 'schedule.go-to-date', title: 'Go to date', run: handlers.openGoToDate },
     {
       name: 'schedule.previous-occurrence',
-      title: 'Previous game',
+      title: 'Prev game',
       run: handlers.previousOccurrence,
     },
     { name: 'schedule.next-occurrence', title: 'Next game', run: handlers.nextOccurrence },
-    { name: 'schedule.open-selected', title: 'Open game', run: handlers.openSelectedGame },
+    { name: 'schedule.open-selected', title: 'Open', run: handlers.openSelectedGame },
     { name: 'schedule.help', title: 'Help', run: handlers.openHelp },
   ],
   bindings: [
@@ -45,8 +45,8 @@ export const scheduleCommandLayer = (handlers: ScheduleCommandHandlers) => ({
     { key: 'n', cmd: 'schedule.next-date' },
     { key: 't', cmd: 'schedule.today' },
     { key: 'g', cmd: 'schedule.go-to-date' },
-    { key: 'left', cmd: 'schedule.previous-occurrence' },
-    { key: 'right', cmd: 'schedule.next-occurrence' },
+    { key: 'up', cmd: 'schedule.previous-occurrence' },
+    { key: 'down', cmd: 'schedule.next-occurrence' },
     { key: 'return', cmd: 'schedule.open-selected' },
     { key: '?', cmd: 'schedule.help' },
   ],

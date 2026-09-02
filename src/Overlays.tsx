@@ -2,12 +2,20 @@ import { useAtomSet, useAtomValue } from '@effect/atom-react'
 import { TextAttributes, type InputRenderable } from '@opentui/core'
 import { useActiveKeys, useBindings } from '@opentui/keymap/react'
 import * as DateTime from 'effect/DateTime'
+import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import { useCallback, useRef, useState } from 'react'
 import invariant from 'tiny-invariant'
 
 import { closeOverlayAtom, goToDateAtom, Overlay, selectedDateAtom } from './AppState'
 import { parseLocalCalendarDate } from './date'
+
+const formatKeyDisplay = (display: string): string =>
+  Match.value(display).pipe(
+    Match.when('up', () => '↑'),
+    Match.when('down', () => '↓'),
+    Match.orElse((value) => value),
+  )
 
 export const CommandHints = () => {
   const activeKeys = useActiveKeys({ includeMetadata: true })
@@ -28,7 +36,7 @@ export const CommandHints = () => {
 
         return (
           <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>
-            <text attributes={TextAttributes.BOLD}>{key.display}</text>
+            <text attributes={TextAttributes.BOLD}>{formatKeyDisplay(key.display)}</text>
             <text attributes={TextAttributes.DIM}>{commandTitle}</text>
           </box>
         )

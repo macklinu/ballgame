@@ -4,6 +4,7 @@ import { useActiveKeys, useBindings } from '@opentui/keymap/react'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 import { useCallback, useRef, useState } from 'react'
+import invariant from 'tiny-invariant'
 
 import { closeOverlayAtom, goToDateAtom, Overlay, selectedDateAtom } from './AppState'
 import { parseLocalCalendarDate } from './date'
@@ -20,9 +21,10 @@ export const CommandHints = () => {
 
         const commandName = typeof key.command === 'string' ? key.command : key.command.name
         const commandTitle = key.commandAttrs?.title
-        if (typeof commandTitle !== 'string' || commandTitle.length === 0) {
-          throw new Error(`Command ${commandName} must define a title.`)
-        }
+        invariant(
+          typeof commandTitle === 'string' && commandTitle.length > 0,
+          `Command ${commandName} must define a title.`,
+        )
 
         return (
           <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>

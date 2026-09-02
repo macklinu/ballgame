@@ -77,14 +77,17 @@ it.effect('renders command hint titles', () =>
     yield* ui.renderOnce
     const frame = yield* ui.waitForFrame((value) => value.includes('Go to date'))
 
+    expect(frame).toContain('↑ Prev game')
+    expect(frame).toContain('↓ Next game')
+
     for (const title of [
-      'Previous date',
+      'Prev date',
       'Next date',
       'Today',
       'Go to date',
-      'Previous game',
+      'Prev game',
       'Next game',
-      'Open game',
+      'Open',
       'Help',
       'Quit',
     ]) {

@@ -45,6 +45,27 @@ export const ScheduleOccurrence = Schema.Union([
 export type ScheduleOccurrence = typeof ScheduleOccurrence.Type
 
 export const isAvailableScheduleOccurrence = Schema.is(AvailableScheduleOccurrence)
+/**
+ * Keeps known game starts in order while retaining an unavailable provider row
+ * at its original schedule position.
+ */
+export const orderByScheduledStart = (
+  occurrences: ReadonlyArray<ScheduleOccurrence>,
+): ReadonlyArray<ScheduleOccurrence> => {
+  const available = occurrences.filter(isAvailableScheduleOccurrence).toSorted((left, right) => {
+    return DateTime.toEpochMillis(left.game.startsAt) - DateTime.toEpochMillis(right.game.startsAt)
+  })
+  let index = 0
+
+  return occurrences.map((occurrence) => {
+    if (!isAvailableScheduleOccurrence(occurrence)) {
+      return occurrence
+    }
+    const ordered = available[index]
+    index += 1
+    return ordered ?? occurrence
+  })
+}
 
 export interface Schedule {
   readonly date: ScheduleDate

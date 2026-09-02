@@ -558,7 +558,11 @@ const makeScheduleMapper = (references: References) => {
 
     return Effect.forEach(games, (game) =>
       mapProviderGame(date, game).pipe(Effect.orElseSucceed(() => unavailableOccurrence(date))),
-    ).pipe(Effect.map((occurrences) => Schedule.Schedule.make({ date, occurrences })))
+    ).pipe(
+      Effect.map((occurrences) =>
+        Schedule.Schedule.make({ date, occurrences: Schedule.orderByScheduledStart(occurrences) }),
+      ),
+    )
   }
 
   const map = (date: DateTime.DateTime, input: unknown) =>

@@ -57,7 +57,9 @@ export const activeOverlayAtom = Atom.make<Option.Option<Overlay>>(Option.none()
 const availableOccurrences = (
   schedule: Schedule.Schedule,
 ): ReadonlyArray<Schedule.AvailableScheduleOccurrence> =>
-  schedule.occurrences.filter(Schedule.isAvailableScheduleOccurrence)
+  Schedule.orderByScheduledStart(schedule.occurrences).filter(
+    Schedule.isAvailableScheduleOccurrence,
+  )
 
 const includesOccurrence = (
   occurrences: ReadonlyArray<Schedule.AvailableScheduleOccurrence>,

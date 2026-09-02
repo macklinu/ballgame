@@ -8,7 +8,6 @@ import { type ReactNode, useCallback, useEffect } from 'react'
 
 import {
   activeOverlayAtom,
-  isSelectedOccurrence,
   nextDateAtom,
   openOverlayAtom,
   openSelectedGameAtom,
@@ -26,8 +25,8 @@ import {
   todayAtom,
   type ScheduleOccurrenceRef,
 } from './AppState'
+import { BulbBoard } from './BulbBoard'
 import { appCommandLayer, detailCommandLayer, scheduleCommandLayer } from './CommandLayers'
-import { GameGridItem } from './game-grid-item'
 import { GameDetails } from './GameDetails'
 import { gameOverviewAtom } from './GameOverviewResource'
 import { Loading } from './loading'
@@ -56,8 +55,6 @@ const scheduleFromRefresh = (
       lastSuccessful.pipe(Option.map((snapshot) => snapshot.schedule)),
   })
 
-const NoGamesScheduled = () => <text attributes={TextAttributes.DIM}>No games today.</text>
-
 const retryingScheduleMessage = 'Retrying schedule…'
 
 const DailyGameView = ({
@@ -69,49 +66,12 @@ const DailyGameView = ({
 }) => {
   const selection = useAtomValue(selectedOccurrenceAtom)
 
-  if (schedule.occurrences.length === 0) {
-    return (
-      <CenteredContainer>
-        <NoGamesScheduled />
-      </CenteredContainer>
-    )
-  }
-
   return (
-    <box
-      flexDirection='row'
-      gap={1}
-      paddingLeft={8}
-      paddingRight={8}
-      paddingTop={2}
-      paddingBottom={2}
-      flexWrap='wrap'
-      justifyContent='center'
-    >
-      {schedule.occurrences.map((occurrence) =>
-        Schedule.isAvailableScheduleOccurrence(occurrence) ? (
-          <GameGridItem
-            onMouseUp={(event) => {
-              onOpenOccurrence(occurrence)
-              event.stopPropagation()
-            }}
-            flexBasis={24}
-            key={`available-${occurrence.selectedDate}-${occurrence.game.ref}`}
-            isSelected={isSelectedOccurrence(selection, occurrence)}
-            game={occurrence.game}
-          />
-        ) : (
-          <box
-            flexBasis={24}
-            key={`unavailable-${occurrence.selectedDate}-${occurrence.message}`}
-            padding={1}
-            borderStyle='single'
-          >
-            <text>{occurrence.message}</text>
-          </box>
-        ),
-      )}
-    </box>
+    <BulbBoard
+      occurrences={schedule.occurrences}
+      selection={selection}
+      onOpenOccurrence={onOpenOccurrence}
+    />
   )
 }
 
@@ -227,35 +187,28 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
   )
 
   return (
-    <>
-      <box alignSelf='center'>
-        <ascii-font text='Ballgame' font='tiny' color={['red', 'white', 'blue']} />
+    <box width='100%' flexGrow={1} flexShrink={1} flexDirection='column' alignItems='center'>
+      <box flexDirection='column' alignItems='center' paddingBottom={1}>
+        <text>Ballgame · {DateTime.formatLocal(date, { dateStyle: 'full' })}</text>
       </box>
-      <box flexDirection='column' alignItems='center'>
-        <box flexDirection='column' gap={1}>
-          <text>
-            <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
-          </text>
-        </box>
-        <box flexGrow={0}>
-          {AsyncResult.builder(scheduleResult)
-            .onInitial(() => (
-              <CenteredContainer>
-                <Loading />
-              </CenteredContainer>
-            ))
-            .onSuccess((refresh) => (
-              <ScheduleRefreshView refresh={refresh} onOpenOccurrence={openOccurrence} />
-            ))
-            .onFailure(() => (
-              <CenteredContainer>
-                <text>Unable to load schedule.</text>
-              </CenteredContainer>
-            ))
-            .orNull()}
-        </box>
+      <box width='100%' flexGrow={1} flexShrink={1}>
+        {AsyncResult.builder(scheduleResult)
+          .onInitial(() => (
+            <CenteredContainer>
+              <Loading />
+            </CenteredContainer>
+          ))
+          .onSuccess((refresh) => (
+            <ScheduleRefreshView refresh={refresh} onOpenOccurrence={openOccurrence} />
+          ))
+          .onFailure(() => (
+            <CenteredContainer>
+              <text>Unable to load schedule.</text>
+            </CenteredContainer>
+          ))
+          .orNull()}
       </box>
-    </>
+    </box>
   )
 }
 

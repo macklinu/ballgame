@@ -28,6 +28,7 @@ const game = Game.Game.make({
   }),
   status: Status.GameStatus.make({ state: 'Final', label: 'Final', reason: Option.none() }),
   score: Option.none(),
+  progress: Option.none(),
 })
 
 const activeGame = Game.Game.make({
@@ -47,6 +48,7 @@ describe('boxscore details', () => {
                 scheduledInnings: Option.some(9),
                 currentInning: Option.some(1),
                 inningHalf: Option.some('Bottom'),
+                outs: Option.none(),
                 away: Game.TeamLinescore.make({
                   runs: Option.some(3),
                   hits: Option.some(8),

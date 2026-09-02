@@ -37,68 +37,57 @@ and [terms of use](https://www.mlb.com/official-information/terms-of-use).
 The first shippable journey is:
 
 1. Launch Ballgame on the user's local calendar date.
-2. Scan every official MLB game for that date on a compact old-school bulb
-   board.
+2. Scan every official MLB game for that date in a compact daily schedule.
 3. Open any game for a truthful, useful detail view.
 4. Open the selected game's official MLB.TV page in the system browser.
 
-The board includes Spring Training, All-Star, regular-season, postseason,
+The schedule includes Spring Training, All-Star, regular-season, postseason,
 doubleheader, and other official schedule entries. It labels unusual game types
 and statuses rather than presenting them as ordinary games.
 
-### Board and interaction
+### Schedule and interaction
 
-- The bulb board is the default visual identity. It uses a plain-text fallback
-  automatically when the terminal is unsuitable and exposes `--plain`.
+- The compact daily schedule is the default visual identity. Five-row dot
+  matrices reduce 80x24 scan density and obscure the higher-value matchup,
+  known score, and game state.
 - The supported baseline is an 80x24 terminal; visual checks also cover
   120x40. Below that baseline, the application must degrade without crashing
   or showing a dedicated resize-only screen.
-- Board rows show teams, score when legitimate, inning/state, scheduled time,
-  and explicit status. Probable pitchers and lineup information belong in game
-  details, not the compact board. Scheduled times use the user's local time
-  zone, while board membership follows MLB's official schedule date. A
-  timezone offset must never move an entry to a different board date.
-- The v0 board does **not** display runners, count, outs, current
-  batter/pitcher, play-by-play, or pitch context.
-- Keyboard operation is required. The footer and `?` help make available keys
-  discoverable. Mouse selection is an optional enhancement, never a required
-  path.
-- List every official game on one board in official scheduled-start order, from
-  earliest to latest. A change from scheduled to live, delayed, final, or
-  another status updates only that row's content; it must not move the row.
-- Board selection represents the date-specific schedule occurrence, not only
-  the provider game reference. This preserves a postponed occurrence as
-  postponed when its later makeup uses the same provider game.
+- One complete game occupies one row in official scheduled-start order. Each
+  row shows away team, known away score, home team, known home score, and a
+  compact state field. Scheduled times use the user's local time zone, while
+  membership follows MLB's official schedule date.
+- Active rows show actual half-inning and known outs. Final rows show `F` or
+  `F/<innings>`; postponed rows show `PPD`. Delayed, suspended, cancelled, and
+  unavailable states use concise text that remains understandable without
+  color.
+- A state change updates only its row; it must not move the row. Selection
+  identifies the date-specific schedule occurrence, not only the provider game
+  reference. Enter opens the selected game details.
+- Keyboard operation is required. The selected row has text cues; color and
+  mouse selection are optional enhancements.
 - For a valid selected date with no official games, retain normal navigation
   and show the concise empty state: “No games today.”
-- Plain rendering is a fully interactive visual mode: it preserves the same
-  selection, date navigation, game details, help, and board order as the bulb
-  renderer.
 - Lowercase `v` opens the selected game's official MLB.TV page in the system
   browser. Ballgame delegates all authentication and availability decisions to
   MLB's normal web experience; it does not inspect, find, or focus existing
   browser tabs.
 - `ballgame` is one interactive command. Its stable v0 flags are `--date`,
-  `--plain`, `--help`, and `--version`; non-interactive subcommands are out of
-  scope.
+  `--help`, and `--version`; non-interactive subcommands are out of scope.
 
 ### Rendering resilience
 
-The bulb board remains the default where terminal output is interactive and
-can render it reliably. `--plain` always forces the fully interactive plain
-renderer. A terminal with Unicode but without truecolor keeps the bulb layout:
-use a high-contrast 256-color, 16-color, or monochrome palette as available.
-Do not require truecolor for bulbs.
-
 The 80x24 baseline is a layout target, not a hard launch gate. At smaller
 sizes, preserve as much compact, interactive content as fits and permit
-ordinary clipping or reflow rather than replacing the app with a resize
-message. The application must tolerate tiny terminal dimensions without
-throwing.
+ordinary clipping rather than replacing the app with a resize message. The
+application must tolerate tiny terminal dimensions without throwing.
+
+Color may improve scanning, but row selection and game state must retain their
+meaning in a monochrome terminal.
 
 ### Game details and historical truth
 
-Every board row opens one adaptive detail shell:
+Every schedule row opens one adaptive detail shell:
 
 - Scheduled games show matchup, time/status, probable pitchers, and a lineup
   or an explicit “lineups not announced” state.
@@ -114,11 +103,10 @@ Every board row opens one adaptive detail shell:
 - Ties, completed-early games, and forfeits use the same shell and show a box
   score only when the result and data are genuinely score-bearing.
 
-Keep v0 game-detail titles as ordinary compact text; a large 5x7 bulb title is
-a later visual enhancement. Details use Up/Down and Page Up/Page Down for
-scrolling, while Escape always returns to the schedule. A live refresh must
-make a best effort to preserve the reader's scroll position or visible content
-rather than resetting the view to the top.
+Keep v0 game-detail titles as ordinary compact text. Details use Up/Down and
+Page Up/Page Down for scrolling, while Escape always returns to the schedule. A
+live refresh must make a best effort to preserve the reader's scroll position or
+visible content rather than resetting the view to the top.
 
 The selected local schedule date is the source of truth. A postponed occurrence
 remains postponed when its original date is viewed, even after a later makeup
@@ -205,7 +193,7 @@ A first public release requires all of the following:
 - Node 26.4.0 and Bun 1.4 verification on macOS and Linux;
 - a clean npm package/install/run check for both `npx` and `bunx`;
 - visual smoke checks at 80x24 and 120x40 for scheduled, live, final, delayed,
-  and unavailable-data states, plus the plain fallback;
+  and unavailable-data states;
 - live-data failure recovery that retains good data and reports an honest
   last-successful timestamp; and
 - current README, public-positioning, installation, and contributor guidance.
@@ -224,7 +212,7 @@ The following are not v0 foundation or first-release requirements:
 
 When command-center work begins after v0, it may reorder its live-game rows as
 its excitement ranking changes. That behavior is intentionally distinct from
-the position-stable bulb board.
+the position-stable compact daily schedule.
 
 ## Foundation milestone order
 
@@ -236,8 +224,8 @@ the position-stable bulb board.
    records and typed errors; implement tolerant per-game schedule mapping,
    test-only derived fixtures, live scheduling, and retained-success refresh
    behavior.
-3. **Usable product slice** — build the scoped keymap/app shell, bulb board,
-   plain fallback, adaptive game details, selected-game MLB.TV action, and
+3. **Usable product slice** — build the scoped keymap/app shell, compact daily
+   schedule, adaptive game details, selected-game MLB.TV action, and
    visual/interaction tests.
 4. **Release foundation** — add Changesets, tag-driven trusted publishing,
    the OS/runtime CI matrix, package verification, and public documentation.

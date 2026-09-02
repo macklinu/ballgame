@@ -1,4 +1,5 @@
 import { it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
@@ -396,43 +397,43 @@ describe('MLB adapter boundary', () => {
       name: 'scheduled',
       scenario: 'Scheduled',
       state: 'Scheduled',
-      score: noScore,
+      score,
     },
     {
       name: 'warmup',
       scenario: 'Warmup',
       state: 'Warmup',
-      score: noScore,
+      score,
     },
     {
       name: 'active',
       scenario: 'Active',
       state: 'Active',
-      score: noScore,
+      score,
     },
     {
       name: 'delay',
       scenario: 'Delayed',
       state: 'Delayed',
-      score: noScore,
+      score,
     },
     {
       name: 'review',
       scenario: 'UnderReview',
       state: 'UnderReview',
-      score: noScore,
+      score,
     },
     {
       name: 'suspension',
       scenario: 'Suspended',
       state: 'Suspended',
-      score: noScore,
+      score,
     },
     {
       name: 'resumed',
       scenario: 'Resumed',
       state: 'Active',
-      score: noScore,
+      score,
     },
     {
       name: 'score-bearing terminal',
@@ -462,19 +463,19 @@ describe('MLB adapter boundary', () => {
       name: 'non-score-bearing terminal',
       scenario: 'Postponed',
       state: 'Postponed',
-      score: noScore,
+      score,
     },
     {
       name: 'cancelled',
       scenario: 'Cancelled',
       state: 'Cancelled',
-      score: noScore,
+      score,
     },
     {
       name: 'unknown',
       scenario: 'Unknown',
       state: 'Unknown',
-      score: noScore,
+      score,
     },
   ] as const)('maps $name to a normalized state and exact score Option', (testCase) =>
     Effect.gen(function* () {
@@ -497,8 +498,54 @@ describe('MLB adapter boundary', () => {
 
       expect({ state: occurrence.game.status.state, score: occurrence.game.score }).toEqual({
         state: 'Scheduled',
-        score: noScore,
+        score,
       })
+    }),
+  )
+  it.effect('keeps known active scores and hydrated inning progress', () =>
+    Effect.gen(function* () {
+      const active = {
+        ...gameWithProviderState('Active'),
+        linescore: {
+          scheduledInnings: 9,
+          currentInning: 7,
+          inningHalf: 'Bottom',
+          outs: 1,
+          teams: null,
+          innings: null,
+        },
+      } satisfies ProviderGameFixture
+      const occurrence = yield* mapAvailable(active)
+
+      expect(occurrence.game.score).toEqual(Option.some(Game.Score.make({ away: 1, home: 2 })))
+      expect(Option.getOrThrow(occurrence.game.progress)).toEqual({
+        scheduledInnings: Option.some(9),
+        currentInning: Option.some(7),
+        inningHalf: Option.some('Bottom'),
+        outs: Option.some(1),
+      })
+    }),
+  )
+
+  it.effect('orders schedule rows by official scheduled start', () =>
+    Effect.gen(function* () {
+      const later = {
+        ...scheduledGame(),
+        gamePk: 2,
+        gameDate: '2025-04-05T21:10:00Z',
+      } satisfies ProviderGameFixture
+      const earlier = {
+        ...scheduledGame(),
+        gamePk: 1,
+        gameDate: '2025-04-05T19:10:00Z',
+      } satisfies ProviderGameFixture
+      const schedule = yield* mapPayload(rawSchedulePayload([later, earlier]))
+
+      expect(
+        schedule.occurrences
+          .filter(Schedule.isAvailableScheduleOccurrence)
+          .map((occurrence) => DateTime.toEpochMillis(occurrence.game.startsAt)),
+      ).toEqual([1743880200000, 1743887400000])
     }),
   )
 
@@ -666,6 +713,7 @@ describe('MLB adapter boundary', () => {
         scheduledInnings: Option.none(),
         currentInning: Option.none(),
         inningHalf: Option.none(),
+        outs: Option.none(),
         away: {
           runs: Option.some(3),
           hits: Option.none(),

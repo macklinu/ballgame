@@ -56,6 +56,7 @@ export const Linescore = Schema.Struct({
   scheduledInnings: Schema.OptionFromOptionalNullOr(Schema.Int),
   currentInning: Schema.OptionFromOptionalNullOr(Schema.Int),
   inningHalf: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
+  outs: Schema.OptionFromOptionalNullOr(Schema.Int),
   teams: Schema.OptionFromOptionalNullOr(
     Schema.Struct({
       away: Schema.OptionFromOptionalNullOr(LinescoreTeam),
@@ -158,6 +159,7 @@ export const Game = Schema.Struct({
   gameType: Schema.OptionFromOptionalNullOr(Schema.NonEmptyString),
   gameDate: Schema.DateTimeUtcFromString,
   status: Status,
+  linescore: Schema.OptionFromOptionalNullOr(Linescore),
   teams: Schema.Struct({
     away: TeamLine,
     home: TeamLine,

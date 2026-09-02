@@ -26,6 +26,7 @@ const game = (ref: string, status: Status.GameStatus): Game.Game =>
     homeTeam: team('team-home', 'Home'),
     status,
     score: Option.none(),
+    progress: Option.none(),
   })
 
 const status = (state: Status.GameState): Status.GameStatus =>

@@ -38,6 +38,7 @@ const scheduleWithState = ({ state }: { readonly state: Status.GameState }): Sch
     homeTeam: team({ ref: 'home', name: 'Home' }),
     status,
     score: Option.none(),
+    progress: Option.none(),
   })
 
   return Schedule.Schedule.make({

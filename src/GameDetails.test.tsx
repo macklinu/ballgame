@@ -48,6 +48,7 @@ const game = (gameStatus: Status.GameStatus): Game.Game =>
     homeTeam,
     status: gameStatus,
     score: Option.none(),
+    progress: Option.none(),
   })
 
 const pitchers = Game.ProbablePitchers.make({
@@ -72,6 +73,7 @@ const scoreOverview = Game.GameOverview.make({
       scheduledInnings: Option.some(9),
       currentInning: Option.some(9),
       inningHalf: Option.some('Bottom'),
+      outs: Option.none(),
       away: Game.TeamLinescore.make({
         runs: Option.some(3),
         hits: Option.some(8),

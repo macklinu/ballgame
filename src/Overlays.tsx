@@ -20,12 +20,14 @@ export const CommandHints = () => {
 
         const commandName = typeof key.command === 'string' ? key.command : key.command.name
         const commandTitle = key.commandAttrs?.title
+        if (typeof commandTitle !== 'string' || commandTitle.length === 0) {
+          throw new Error(`Command ${commandName} must define a title.`)
+        }
+
         return (
           <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>
             <text attributes={TextAttributes.BOLD}>{key.display}</text>
-            <text attributes={TextAttributes.DIM}>
-              {typeof commandTitle === 'string' ? commandTitle : commandName}
-            </text>
+            <text attributes={TextAttributes.DIM}>{commandTitle}</text>
           </box>
         )
       })}
@@ -65,7 +67,7 @@ const GoToDateOverlay = () => {
 
   useBindings(
     () => ({
-      commands: [{ name: 'overlay.dismiss', run: () => closeOverlay(undefined) }],
+      commands: [{ name: 'overlay.dismiss', title: 'Dismiss', run: () => closeOverlay(undefined) }],
       bindings: [{ key: 'escape', cmd: 'overlay.dismiss' }],
     }),
     [closeOverlay],
@@ -74,7 +76,7 @@ const GoToDateOverlay = () => {
     () => ({
       targetRef: inputRef,
       targetMode: 'focus' as const,
-      commands: [{ name: 'go-to-date.submit', run: submit }],
+      commands: [{ name: 'go-to-date.submit', title: 'Submit date', run: submit }],
       bindings: [{ key: 'return', cmd: 'go-to-date.submit' }],
     }),
     [submit],
@@ -102,7 +104,7 @@ const HelpOverlay = () => {
 
   useBindings(
     () => ({
-      commands: [{ name: 'overlay.dismiss', run: () => closeOverlay(undefined) }],
+      commands: [{ name: 'overlay.dismiss', title: 'Dismiss', run: () => closeOverlay(undefined) }],
       bindings: [
         { key: 'escape', cmd: 'overlay.dismiss' },
         { key: '?', cmd: 'overlay.dismiss' },

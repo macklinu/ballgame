@@ -58,7 +58,7 @@ it.effect('renders a generic fallback for an unexpected schedule stream defect',
   }),
 )
 
-it.effect('renders human-readable command hint titles instead of action IDs', () =>
+it.effect('renders command hint titles', () =>
   Effect.gen(function* () {
     const ui = yield* OpenTuiTest.make({
       node: (
@@ -89,19 +89,6 @@ it.effect('renders human-readable command hint titles instead of action IDs', ()
       'Quit',
     ]) {
       expect(frame).toContain(title)
-    }
-    for (const actionId of [
-      'app.quit',
-      'schedule.previous-date',
-      'schedule.next-date',
-      'schedule.today',
-      'schedule.go-to-date',
-      'schedule.previous-occurrence',
-      'schedule.next-occurrence',
-      'schedule.open-selected',
-      'schedule.help',
-    ]) {
-      expect(frame).not.toContain(actionId)
     }
   }),
 )

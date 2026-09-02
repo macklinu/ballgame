@@ -91,8 +91,7 @@ describe('overlay interactions', () => {
         frame.includes('Available commands'),
       )
 
-      expect(helpFrame).not.toContain('g schedule.go-to-date')
-      expect(helpFrame).toContain('? overlay.dismiss')
+      expect(helpFrame).toContain('? Dismiss')
 
       for (const key of ['q', 'p', KeyCodes.RETURN]) {
         yield* harness.ui.pressKey({ key })

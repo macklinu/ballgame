@@ -27,7 +27,7 @@ import {
   type ScheduleOccurrenceRef,
 } from './AppState'
 import { appCommandLayer, detailCommandLayer, scheduleCommandLayer } from './CommandLayers'
-import { GameGridItem } from './game-grid-item'
+import { DailyScheduleRow } from './DailyScheduleRow'
 import { GameDetails } from './GameDetails'
 import { gameOverviewAtom } from './GameOverviewResource'
 import { Loading } from './loading'
@@ -60,7 +60,7 @@ const NoGamesScheduled = () => <text attributes={TextAttributes.DIM}>No games to
 
 const retryingScheduleMessage = 'Retrying schedule…'
 
-const DailyGameView = ({
+export const DailyGameView = ({
   schedule,
   onOpenOccurrence,
 }: {
@@ -79,35 +79,32 @@ const DailyGameView = ({
 
   return (
     <box
-      flexDirection='row'
-      gap={1}
-      paddingLeft={8}
-      paddingRight={8}
-      paddingTop={2}
-      paddingBottom={2}
-      flexWrap='wrap'
-      justifyContent='center'
+      width='100%'
+      flexDirection='column'
+      paddingLeft={2}
+      paddingRight={2}
+      paddingTop={1}
+      paddingBottom={1}
     >
       {schedule.occurrences.map((occurrence) =>
         Schedule.isAvailableScheduleOccurrence(occurrence) ? (
-          <GameGridItem
+          <DailyScheduleRow
             onMouseUp={(event) => {
               onOpenOccurrence(occurrence)
               event.stopPropagation()
             }}
-            flexBasis={24}
             key={`available-${occurrence.selectedDate}-${occurrence.game.ref}`}
             isSelected={isSelectedOccurrence(selection, occurrence)}
             game={occurrence.game}
           />
         ) : (
           <box
-            flexBasis={24}
+            flexDirection='row'
             key={`unavailable-${occurrence.selectedDate}-${occurrence.message}`}
-            padding={1}
-            borderStyle='single'
           >
-            <text>{occurrence.message}</text>
+            <text>{`  ${occurrence.message}`}</text>
+            <box flexGrow={1} />
+            <text>Unavailable </text>
           </box>
         ),
       )}
@@ -231,13 +228,13 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
       <box alignSelf='center'>
         <ascii-font text='Ballgame' font='tiny' color={['red', 'white', 'blue']} />
       </box>
-      <box flexDirection='column' alignItems='center'>
+      <box width='100%' flexDirection='column' alignItems='center'>
         <box flexDirection='column' gap={1}>
           <text>
             <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>
           </text>
         </box>
-        <box flexGrow={0}>
+        <box width='100%' flexGrow={0}>
           {AsyncResult.builder(scheduleResult)
             .onInitial(() => (
               <CenteredContainer>

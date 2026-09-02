@@ -57,3 +57,38 @@ it.effect('renders a generic fallback for an unexpected schedule stream defect',
     expect(frame).not.toContain(defectMessage)
   }),
 )
+
+it.effect('renders command hint titles', () =>
+  Effect.gen(function* () {
+    const ui = yield* OpenTuiTest.make({
+      node: (
+        <RegistryProvider
+          initialValues={[
+            Atom.initialValue(selectedDateAtom, fixedDate),
+            Atom.initialValue(ScheduleResource.scheduleForDateAtom(fixedDate), failureResult),
+          ]}
+        >
+          <ApplicationHarness />
+        </RegistryProvider>
+      ),
+      options: { width: 120, height: 34, kittyKeyboard: true },
+    })
+
+    yield* ui.renderOnce
+    const frame = yield* ui.waitForFrame((value) => value.includes('Go to date'))
+
+    for (const title of [
+      'Previous date',
+      'Next date',
+      'Today',
+      'Go to date',
+      'Previous game',
+      'Next game',
+      'Open game',
+      'Help',
+      'Quit',
+    ]) {
+      expect(frame).toContain(title)
+    }
+  }),
+)

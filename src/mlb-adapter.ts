@@ -204,11 +204,24 @@ const mapLinescore = (raw: MlbDto.Linescore): Game.Linescore => {
     scheduledInnings: raw.scheduledInnings,
     currentInning: raw.currentInning,
     inningHalf,
+    outs: raw.outs,
     away: teams.away,
     home: teams.home,
     innings,
   })
 }
+
+const mapProgress = (linescore: Option.Option<Game.Linescore>): Option.Option<Game.GameProgress> =>
+  linescore.pipe(
+    Option.map((value) =>
+      Game.GameProgress.make({
+        scheduledInnings: value.scheduledInnings,
+        currentInning: value.currentInning,
+        inningHalf: value.inningHalf,
+        outs: value.outs,
+      }),
+    ),
+  )
 
 const mapPlayer = (
   person: MlbDto.Person,
@@ -466,12 +479,10 @@ const mapGameOverview = Effect.fn('MlbGame.mapOverview')(function* (
   const rawBoxscore = raw.liveData.pipe(Option.flatMap((liveData) => liveData.boxscore))
   const boxscoreData = yield* decodeBoxscore(rawBoxscore, references)
   const status = mapStatus(raw.gameData.status)
-  const score = Status.isScoreBearing(status)
-    ? linescore.pipe(
-        Option.flatMap((value) => Option.all({ away: value.away.runs, home: value.home.runs })),
-        Option.map((value) => Game.Score.make(value)),
-      )
-    : Option.none()
+  const score = linescore.pipe(
+    Option.flatMap((value) => Option.all({ away: value.away.runs, home: value.home.runs })),
+    Option.map((value) => Game.Score.make(value)),
+  )
   const game = Game.Game.make({
     ref: references.game(requestedGamePk),
     type: mapGameType(Option.some(raw.gameData.game.type)),
@@ -480,6 +491,7 @@ const mapGameOverview = Effect.fn('MlbGame.mapOverview')(function* (
     homeTeam: mapTeam(raw.gameData.teams.home, references),
     status,
     score,
+    progress: mapProgress(linescore),
   })
   return Game.GameOverview.make({
     game,
@@ -523,11 +535,10 @@ const makeScheduleMapper = (references: References) => {
         const status = mapStatus(raw.status)
         const away = mapTeam(raw.teams.away.team, references)
         const home = mapTeam(raw.teams.home.team, references)
-        const score = Status.isScoreBearing(status)
-          ? Option.all({ away: raw.teams.away.score, home: raw.teams.home.score }).pipe(
-              Option.map((score) => Game.Score.make(score)),
-            )
-          : Option.none()
+        const score = Option.all({ away: raw.teams.away.score, home: raw.teams.home.score }).pipe(
+          Option.map((value) => Game.Score.make(value)),
+        )
+        const progress = mapProgress(raw.linescore.pipe(Option.map(mapLinescore)))
         const game = Game.Game.make({
           ref: references.game(raw.gamePk),
           type: mapGameType(raw.gameType),
@@ -536,6 +547,7 @@ const makeScheduleMapper = (references: References) => {
           homeTeam: home,
           status,
           score,
+          progress,
         })
         const rescheduledTo = relatedDate(raw.rescheduleGameDate, raw.rescheduleDate)
         const rescheduledFrom = relatedDate(raw.rescheduledFromDate, raw.rescheduledFrom)
@@ -558,9 +570,27 @@ const makeScheduleMapper = (references: References) => {
 
     return Effect.forEach(games, (game) =>
       mapProviderGame(date, game).pipe(Effect.orElseSucceed(() => unavailableOccurrence(date))),
-    ).pipe(Effect.map((occurrences) => Schedule.Schedule.make({ date, occurrences })))
-  }
+    ).pipe(
+      Effect.map((occurrences) =>
+        Schedule.Schedule.make({
+          date,
+          occurrences: occurrences.sort((left, right) => {
+            if (
+              Schedule.isAvailableScheduleOccurrence(left) &&
+              Schedule.isAvailableScheduleOccurrence(right)
+            ) {
+              return (
+                DateTime.toEpochMillis(left.game.startsAt) -
+                DateTime.toEpochMillis(right.game.startsAt)
+              )
+            }
 
+            return 0
+          }),
+        }),
+      ),
+    )
+  }
   const map = (date: DateTime.DateTime, input: unknown) =>
     Schema.decodeUnknownEffect(MlbDto.ScheduleResponse)(input).pipe(
       Effect.flatMap((payload) => mapPayload(date, payload)),

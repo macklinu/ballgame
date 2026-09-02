@@ -4,12 +4,13 @@ import { useActiveKeys, useBindings } from '@opentui/keymap/react'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 import { useCallback, useRef, useState } from 'react'
+import invariant from 'tiny-invariant'
 
 import { closeOverlayAtom, goToDateAtom, Overlay, selectedDateAtom } from './AppState'
 import { parseLocalCalendarDate } from './date'
 
 export const CommandHints = () => {
-  const activeKeys = useActiveKeys()
+  const activeKeys = useActiveKeys({ includeMetadata: true })
 
   return (
     <box flexDirection='row' flexWrap='wrap' gap={1}>
@@ -19,10 +20,16 @@ export const CommandHints = () => {
         }
 
         const commandName = typeof key.command === 'string' ? key.command : key.command.name
+        const commandTitle = key.commandAttrs?.title
+        invariant(
+          typeof commandTitle === 'string' && commandTitle.length > 0,
+          `Command ${commandName} must define a title.`,
+        )
+
         return (
           <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>
             <text attributes={TextAttributes.BOLD}>{key.display}</text>
-            <text attributes={TextAttributes.DIM}>{commandName}</text>
+            <text attributes={TextAttributes.DIM}>{commandTitle}</text>
           </box>
         )
       })}
@@ -62,7 +69,7 @@ const GoToDateOverlay = () => {
 
   useBindings(
     () => ({
-      commands: [{ name: 'overlay.dismiss', run: () => closeOverlay(undefined) }],
+      commands: [{ name: 'overlay.dismiss', title: 'Dismiss', run: () => closeOverlay(undefined) }],
       bindings: [{ key: 'escape', cmd: 'overlay.dismiss' }],
     }),
     [closeOverlay],
@@ -71,7 +78,7 @@ const GoToDateOverlay = () => {
     () => ({
       targetRef: inputRef,
       targetMode: 'focus' as const,
-      commands: [{ name: 'go-to-date.submit', run: submit }],
+      commands: [{ name: 'go-to-date.submit', title: 'Submit date', run: submit }],
       bindings: [{ key: 'return', cmd: 'go-to-date.submit' }],
     }),
     [submit],
@@ -99,7 +106,7 @@ const HelpOverlay = () => {
 
   useBindings(
     () => ({
-      commands: [{ name: 'overlay.dismiss', run: () => closeOverlay(undefined) }],
+      commands: [{ name: 'overlay.dismiss', title: 'Dismiss', run: () => closeOverlay(undefined) }],
       bindings: [
         { key: 'escape', cmd: 'overlay.dismiss' },
         { key: '?', cmd: 'overlay.dismiss' },

@@ -51,6 +51,7 @@ const occurrence = (
         reason: Option.none(),
       }),
       score: Option.none(),
+      progress: Option.none(),
     }),
     rescheduledTo: Option.none(),
     rescheduledFrom: Option.none(),

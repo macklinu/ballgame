@@ -28,6 +28,9 @@ export const Score = Schema.Struct({
 })
 export type Score = typeof Score.Type
 
+export const InningHalf = Schema.Literals(['Top', 'Bottom'])
+export type InningHalf = typeof InningHalf.Type
+
 /** A Ballgame-owned player reference assigned by the provider adapter. */
 export const PlayerRef = Schema.String.pipe(Schema.brand('PlayerRef'))
 export type PlayerRef = typeof PlayerRef.Type
@@ -62,7 +65,8 @@ export type InningLinescore = typeof InningLinescore.Type
 export const Linescore = Schema.Struct({
   scheduledInnings: Schema.OptionFromOptionalKey(Schema.Int),
   currentInning: Schema.OptionFromOptionalKey(Schema.Int),
-  inningHalf: Schema.OptionFromOptionalKey(Schema.Literals(['Top', 'Bottom'])),
+  inningHalf: Schema.OptionFromOptionalKey(InningHalf),
+  outs: Schema.OptionFromOptionalKey(Schema.Int),
   away: TeamLinescore,
   home: TeamLinescore,
   innings: Schema.Array(InningLinescore),
@@ -139,6 +143,15 @@ export const Boxscore = Schema.Struct({
 })
 export type Boxscore = typeof Boxscore.Type
 
+/** Live progress hydrated with a schedule entry; absent values remain unavailable. */
+export const GameProgress = Schema.Struct({
+  scheduledInnings: Schema.OptionFromOptionalKey(Schema.Int),
+  currentInning: Schema.OptionFromOptionalKey(Schema.Int),
+  inningHalf: Schema.OptionFromOptionalKey(InningHalf),
+  outs: Schema.OptionFromOptionalKey(Schema.Int),
+})
+export type GameProgress = typeof GameProgress.Type
+
 export const Game = Schema.Struct({
   ref: GameRef,
   type: GameType,
@@ -147,6 +160,7 @@ export const Game = Schema.Struct({
   homeTeam: Team.Team,
   status: Status.GameStatus,
   score: Schema.OptionFromOptionalKey(Score),
+  progress: Schema.OptionFromOptionalKey(GameProgress),
 })
 export type Game = typeof Game.Type
 

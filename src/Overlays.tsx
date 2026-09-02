@@ -9,7 +9,7 @@ import { closeOverlayAtom, goToDateAtom, Overlay, selectedDateAtom } from './App
 import { parseLocalCalendarDate } from './date'
 
 export const CommandHints = () => {
-  const activeKeys = useActiveKeys()
+  const activeKeys = useActiveKeys({ includeMetadata: true })
 
   return (
     <box flexDirection='row' flexWrap='wrap' gap={1}>
@@ -19,10 +19,13 @@ export const CommandHints = () => {
         }
 
         const commandName = typeof key.command === 'string' ? key.command : key.command.name
+        const commandTitle = key.commandAttrs?.title
         return (
           <box key={`${key.display}-${commandName}`} flexDirection='row' gap={1}>
             <text attributes={TextAttributes.BOLD}>{key.display}</text>
-            <text attributes={TextAttributes.DIM}>{commandName}</text>
+            <text attributes={TextAttributes.DIM}>
+              {typeof commandTitle === 'string' ? commandTitle : commandName}
+            </text>
           </box>
         )
       })}

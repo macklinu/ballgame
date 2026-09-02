@@ -20,21 +20,25 @@ export interface DetailCommandHandlers {
 
 export const appCommandLayer = (handlers: AppCommandHandlers) => ({
   priority: 0,
-  commands: [{ name: 'app.quit', run: handlers.quit }],
+  commands: [{ name: 'app.quit', title: 'Quit', run: handlers.quit }],
   bindings: [{ key: 'q', cmd: 'app.quit' }],
 })
 
 export const scheduleCommandLayer = (handlers: ScheduleCommandHandlers) => ({
   priority: 100,
   commands: [
-    { name: 'schedule.previous-date', run: handlers.previousDate },
-    { name: 'schedule.next-date', run: handlers.nextDate },
-    { name: 'schedule.today', run: handlers.today },
-    { name: 'schedule.go-to-date', run: handlers.openGoToDate },
-    { name: 'schedule.previous-occurrence', run: handlers.previousOccurrence },
-    { name: 'schedule.next-occurrence', run: handlers.nextOccurrence },
-    { name: 'schedule.open-selected', run: handlers.openSelectedGame },
-    { name: 'schedule.help', run: handlers.openHelp },
+    { name: 'schedule.previous-date', title: 'Previous date', run: handlers.previousDate },
+    { name: 'schedule.next-date', title: 'Next date', run: handlers.nextDate },
+    { name: 'schedule.today', title: 'Today', run: handlers.today },
+    { name: 'schedule.go-to-date', title: 'Go to date', run: handlers.openGoToDate },
+    {
+      name: 'schedule.previous-occurrence',
+      title: 'Previous game',
+      run: handlers.previousOccurrence,
+    },
+    { name: 'schedule.next-occurrence', title: 'Next game', run: handlers.nextOccurrence },
+    { name: 'schedule.open-selected', title: 'Open game', run: handlers.openSelectedGame },
+    { name: 'schedule.help', title: 'Help', run: handlers.openHelp },
   ],
   bindings: [
     { key: 'p', cmd: 'schedule.previous-date' },
@@ -51,8 +55,8 @@ export const scheduleCommandLayer = (handlers: ScheduleCommandHandlers) => ({
 export const detailCommandLayer = (handlers: DetailCommandHandlers) => ({
   priority: 100,
   commands: [
-    { name: 'detail.back', run: handlers.back },
-    { name: 'detail.help', run: handlers.openHelp },
+    { name: 'detail.back', title: 'Back', run: handlers.back },
+    { name: 'detail.help', title: 'Help', run: handlers.openHelp },
   ],
   bindings: [
     { key: 'escape', cmd: 'detail.back' },

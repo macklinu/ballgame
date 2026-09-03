@@ -10,6 +10,7 @@ export interface ScheduleCommandHandlers {
   readonly previousOccurrence: () => void
   readonly nextOccurrence: () => void
   readonly openSelectedGame: () => void
+  readonly openMlbTv: () => void
   readonly openHelp: () => void
 }
 
@@ -38,6 +39,7 @@ export const scheduleCommandLayer = (handlers: ScheduleCommandHandlers) => ({
     },
     { name: 'schedule.next-occurrence', title: 'Next game', run: handlers.nextOccurrence },
     { name: 'schedule.open-selected', title: 'Open', run: handlers.openSelectedGame },
+    { name: 'schedule.open-mlb-tv', title: 'Open MLB.TV', run: handlers.openMlbTv },
     { name: 'schedule.help', title: 'Help', run: handlers.openHelp },
   ],
   bindings: [
@@ -48,6 +50,7 @@ export const scheduleCommandLayer = (handlers: ScheduleCommandHandlers) => ({
     { key: 'up', cmd: 'schedule.previous-occurrence' },
     { key: 'down', cmd: 'schedule.next-occurrence' },
     { key: 'return', cmd: 'schedule.open-selected' },
+    { key: 'v', cmd: 'schedule.open-mlb-tv' },
     { key: '?', cmd: 'schedule.help' },
   ],
 })

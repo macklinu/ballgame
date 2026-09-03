@@ -7,6 +7,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as HttpClient from 'effect/unstable/http/HttpClient'
 import * as HttpClientResponse from 'effect/unstable/http/HttpClientResponse'
+import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 import * as Game from './Game'
 import * as MlbDto from './mlb-dto'
@@ -68,6 +69,8 @@ const makeReferences = (): References => {
     findGamePk: (gameRef) => Option.fromUndefinedOr(gamePks.get(gameRef)),
   }
 }
+
+const browserOpener = process.platform === 'darwin' ? 'open' : 'xdg-open'
 
 const optionOrEmpty = (value: Option.Option<string>): string => Option.getOrElse(value, () => '')
 
@@ -617,6 +620,7 @@ export const mapScheduleForTest = (date: DateTime.DateTime, input: unknown) =>
 export const layerLive = Layer.effectContext(
   Effect.gen(function* () {
     const httpClient = yield* HttpClient.HttpClient
+    const browser = yield* ChildProcessSpawner.ChildProcessSpawner
     const references = makeReferences()
     const scheduleMapper = makeScheduleMapper(references)
 
@@ -657,12 +661,37 @@ export const layerLive = Layer.effectContext(
       return yield* mapGameOverview(gamePk, payload, references)
     })
 
+    const openMlbTv = Effect.fn('MlbGame.openMlbTv')(function* (gameRef: Game.GameRef) {
+      const gamePk = references.findGamePk(gameRef)
+      if (Option.isNone(gamePk)) {
+        return yield* new Game.GameNotFound({ gameRef })
+      }
+
+      const command = ChildProcess.make(
+        browserOpener,
+        [`https://www.mlb.com/tv/g${gamePk.value}`],
+        {
+          stdout: 'ignore',
+          stderr: 'ignore',
+        },
+      )
+      return yield* browser.exitCode(command).pipe(
+        Effect.mapError((cause) => new Game.GameUnavailable({ operation: 'MlbTv.open', cause })),
+        Effect.filterOrFail(
+          (exitCode) => exitCode === 0,
+          (exitCode) =>
+            gameUnavailable('MlbTv.open', `The system browser command ended with code ${exitCode}`),
+        ),
+        Effect.asVoid,
+      )
+    })
+
     // One adapter acquisition supplies both public services. They share the
     // private reference cache, so a game returned by a schedule remains
     // addressable by the GameService without exposing provider identifiers.
     return Context.empty().pipe(
       Context.add(Schedule.ScheduleService, Schedule.ScheduleService.of({ get: getSchedule })),
-      Context.add(Game.GameService, Game.GameService.of({ get: getGame })),
+      Context.add(Game.GameService, Game.GameService.of({ get: getGame, openMlbTv })),
     )
   }),
 )

@@ -31,6 +31,7 @@ import { DailyScheduleRow } from './DailyScheduleRow'
 import { GameDetails } from './GameDetails'
 import { gameOverviewAtom } from './GameOverviewResource'
 import { Loading } from './loading'
+import { openMlbTvAtom } from './MlbTvResource'
 import { CommandHints, OverlayHost } from './Overlays'
 import * as Schedule from './Schedule'
 import * as ScheduleResource from './ScheduleResource'
@@ -158,8 +159,10 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
   const openOverlay = useAtomSet(openOverlayAtom)
   const selectPreviousOccurrence = useAtomSet(selectPreviousOccurrenceAtom)
   const selectNextOccurrence = useAtomSet(selectNextOccurrenceAtom)
+  const selection = useAtomValue(selectedOccurrenceAtom)
   const selectOccurrence = useAtomSet(selectOccurrenceAtom)
   const openSelectedGame = useAtomSet(openSelectedGameAtom)
+  const openMlbTv = useAtomSet(openMlbTvAtom)
   const synchronizeSelection = useAtomSet(synchronizeSelectionAtom)
 
   useEffect(() => {
@@ -194,6 +197,14 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
     },
     [openSelectedGame, selectOccurrence],
   )
+  const openSelectedMlbTv = useCallback(
+    () =>
+      Option.match(selection, {
+        onNone: () => undefined,
+        onSome: ({ gameRef }) => openMlbTv(gameRef),
+      }),
+    [openMlbTv, selection],
+  )
   const openHelp = useCallback(() => openOverlay(Overlay.Help()), [openOverlay])
 
   useBindings(
@@ -206,6 +217,7 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
         previousOccurrence,
         nextOccurrence,
         openSelectedGame: () => openSelectedGame(undefined),
+        openMlbTv: openSelectedMlbTv,
         openHelp,
       }),
       enabled: commandsEnabled,
@@ -218,6 +230,7 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
       openOverlay,
       openSelectedGame,
       previousDate,
+      openSelectedMlbTv,
       previousOccurrence,
       today,
     ],

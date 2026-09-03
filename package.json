@@ -4,7 +4,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "TZ=UTC nub watch src/index.tsx",
+    "dev": "nub watch src/index.tsx",
     "lint": "oxlint --disable-nested-config",
     "typecheck": "tsc --noEmit",
     "test": "vitest src",

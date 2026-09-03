@@ -662,20 +662,23 @@ export const layerLive = Layer.effectContext(
     })
 
     const openMlbTv = Effect.fn('MlbGame.openMlbTv')(function* (gameRef: Game.GameRef) {
-      const gamePk = yield* Option.match(references.findGamePk(gameRef), {
-        onNone: () => Effect.fail(new Game.GameNotFound({ gameRef })),
-        onSome: Effect.succeed,
-      })
-      const exitCode = yield* browser
-        .exitCode(
-          ChildProcess.make(browserOpener, [`https://www.mlb.com/tv/g${gamePk}`], {
-            stdout: 'ignore',
-            stderr: 'ignore',
-          }),
-        )
-        .pipe(
-          Effect.mapError((cause) => new Game.GameUnavailable({ operation: 'MlbTv.open', cause })),
-        )
+      const gamePk = references.findGamePk(gameRef)
+      if (Option.isNone(gamePk)) {
+        return yield* new Game.GameNotFound({ gameRef })
+      }
+
+      const command = ChildProcess.make(
+        browserOpener,
+        [`https://www.mlb.com/tv/g${gamePk.value}`],
+        {
+          stdout: 'ignore',
+          stderr: 'ignore',
+        },
+      )
+      const exitCode = yield* Effect.mapError(
+        browser.exitCode(command),
+        (cause) => new Game.GameUnavailable({ operation: 'MlbTv.open', cause }),
+      )
 
       if (exitCode !== 0) {
         return yield* new Game.GameUnavailable({

@@ -115,6 +115,34 @@ describe('compact daily schedule', () => {
     }),
   )
 
+  it.effect('keeps two-digit matchup scores separated and aligned', () =>
+    Effect.gen(function* () {
+      const final = availableOccurrence(
+        makeFixtureGame({
+          ref: 'two-digit-final',
+          state: 'Final',
+          away: 'NYM',
+          home: 'TOR',
+          score: { away: 10, home: 9 },
+        }),
+      )
+      const schedule = Schedule.Schedule.make({ date: selectedDate, occurrences: [final] })
+      const ui = yield* OpenTuiTest.make({
+        node: (
+          <RegistryProvider
+            initialValues={[Atom.initialValue(selectedOccurrenceAtom, Option.none())]}
+          >
+            <DailyGameView schedule={schedule} onOpenOccurrence={() => undefined} />
+          </RegistryProvider>
+        ),
+        options: { width: 80, height: 24 },
+      })
+
+      yield* ui.renderOnce
+      expect(yield* ui.captureCharFrame).toContain('NYM 10  @ TOR  9')
+    }),
+  )
+
   it.effect('renders unavailable game data explicitly', () =>
     Effect.gen(function* () {
       const schedule = Schedule.Schedule.make({

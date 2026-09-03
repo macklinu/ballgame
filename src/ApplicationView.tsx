@@ -241,7 +241,7 @@ const ScheduleScreen = ({ commandsEnabled }: { commandsEnabled: boolean }) => {
       <box alignSelf='center'>
         <ascii-font text='Ballgame' font='tiny' color={['red', 'white', 'blue']} />
       </box>
-      <box width='100%' flexDirection='column' alignItems='center'>
+      <box width='100%' maxWidth={80} flexDirection='column' alignItems='center'>
         <box flexDirection='column' gap={1}>
           <text>
             <b>{DateTime.formatLocal(date, { dateStyle: 'full' })}</b>

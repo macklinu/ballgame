@@ -298,7 +298,11 @@ const fullGameFeed = (
   }
 }
 
-const makeLiveAdapter = (schedule: ProviderGameFixture, feedBody: string) => {
+const makeLiveAdapter = (
+  schedule: ProviderGameFixture,
+  feedBody: string,
+  { browserExitCode = 0 }: { readonly browserExitCode?: number } = {},
+) => {
   const requestedUrls: Array<string> = []
   const client = HttpClient.make((request) => {
     requestedUrls.push(request.url)
@@ -320,7 +324,7 @@ const makeLiveAdapter = (schedule: ProviderGameFixture, feedBody: string) => {
       if (command._tag === 'StandardCommand') {
         browserArguments.push(command.args)
       }
-      return Effect.succeed(ChildProcessSpawner.ExitCode(0))
+      return Effect.succeed(ChildProcessSpawner.ExitCode(browserExitCode))
     },
   })
 
@@ -818,6 +822,23 @@ describe('MLB adapter boundary', () => {
       expectGameUnavailable(failure, 'GameOverview.fetch')
     })
   })
+  it.effect('fails when the system browser cannot open the selected game', () => {
+    const adapter = makeLiveAdapter(scheduledGame(), JSON.stringify(fullGameFeed()), {
+      browserExitCode: 1,
+    })
+
+    return Effect.gen(function* () {
+      const failure = yield* Effect.flip(openSelectedMlbTv().pipe(Effect.provide(adapter.layer)))
+
+      expect(failure).toEqual(
+        new Game.GameUnavailable({
+          operation: 'MlbTv.open',
+          cause: new Error('The system browser command ended with code 1'),
+        }),
+      )
+    })
+  })
+
   it.effect('opens the selected game official MLB.TV page from its provider game identity', () => {
     const adapter = makeLiveAdapter(scheduledGame(), JSON.stringify(fullGameFeed()))
 

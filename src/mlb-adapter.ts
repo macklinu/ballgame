@@ -675,17 +675,15 @@ export const layerLive = Layer.effectContext(
           stderr: 'ignore',
         },
       )
-      const exitCode = yield* Effect.mapError(
-        browser.exitCode(command),
-        (cause) => new Game.GameUnavailable({ operation: 'MlbTv.open', cause }),
+      return yield* browser.exitCode(command).pipe(
+        Effect.mapError((cause) => new Game.GameUnavailable({ operation: 'MlbTv.open', cause })),
+        Effect.filterOrFail(
+          (exitCode) => exitCode === 0,
+          (exitCode) =>
+            gameUnavailable('MlbTv.open', `The system browser command ended with code ${exitCode}`),
+        ),
+        Effect.asVoid,
       )
-
-      if (exitCode !== 0) {
-        return yield* new Game.GameUnavailable({
-          operation: 'MlbTv.open',
-          cause: new Error(`The system browser command ended with code ${exitCode}`),
-        })
-      }
     })
 
     // One adapter acquisition supplies both public services. They share the
